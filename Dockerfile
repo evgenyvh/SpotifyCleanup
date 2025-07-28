@@ -15,4 +15,4 @@ RUN chmod +x /start.sh
 
 # Run the start script
 
-CMD [”/start.sh”]
+CMD /start.sh
