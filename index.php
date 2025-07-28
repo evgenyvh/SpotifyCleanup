@@ -2,9 +2,9 @@
 session_start();
 
 // Spotify App Configuratie
-define('SPOTIFY_CLIENT_ID', 'YOUR_SPOTIFY_CLIENT_ID'); // Vervang met je Client ID
-define('SPOTIFY_CLIENT_SECRET', 'YOUR_SPOTIFY_CLIENT_SECRET'); // Vervang met je Client Secret
-define('REDIRECT_URI', 'https://your-app-name.onrender.com'); // Vervang met je Render URL
+define('SPOTIFY_CLIENT_ID', '01b1208bd01340dfab28bf44f3f1628d');
+define('SPOTIFY_CLIENT_SECRET', '5cd2e26f09954456be09cf7d529e5729');
+define('REDIRECT_URI', 'https://spotifycleanup.onrender.com');
 define('SCOPES', 'playlist-read-private playlist-modify-public playlist-modify-private');
 
 // Helper functie voor API calls
