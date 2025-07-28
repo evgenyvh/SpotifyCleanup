@@ -4,7 +4,7 @@ session_start();
 // Spotify App Configuratie
 define('SPOTIFY_CLIENT_ID', '01b1208bd01340dfab28bf44f3f1628d');
 define('SPOTIFY_CLIENT_SECRET', '5cd2e26f09954456be09cf7d529e5729');
-define('REDIRECT_URI', 'https://spotifycleanup.onrender.com');
+define('REDIRECT_URI', 'https://spotifycleanup.onrender.com'); // Vervang met je EXACTE Render URL!
 define('SCOPES', 'playlist-read-private playlist-modify-public playlist-modify-private');
 
 // Helper functie voor API calls
@@ -470,6 +470,9 @@ if (isset($_GET['message'])) {
                 <a href="https://accounts.spotify.com/authorize?client_id=<?php echo SPOTIFY_CLIENT_ID; ?>&response_type=code&redirect_uri=<?php echo urlencode(REDIRECT_URI); ?>&scope=<?php echo urlencode(SCOPES); ?>" class="btn">
                     Login met Spotify
                 </a>
+                <p style="margin-top: 1rem; font-size: 0.8rem; color: #999;">
+                    Redirect URI: <?php echo REDIRECT_URI; ?>
+                </p>
             </div>
         </div>
     <?php else: ?>
