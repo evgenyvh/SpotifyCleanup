@@ -4,13 +4,15 @@ FROM php:8.2-apache
 
 RUN a2enmod rewrite
 
-# Copy the app
+# Copy files
 
 COPY index.php /var/www/html/
+COPY start.sh /start.sh
 
-# Listen on Render’s port
+# Make start script executable
 
-RUN sed -i ‘s/Listen 80/Listen ${PORT}/g’ /etc/apache2/ports.conf &&   
-sed -i ‘s/:80/:${PORT}/g’ /etc/apache2/sites-available/000-default.conf
+RUN chmod +x /start.sh
 
-CMD [“sh”, “-c”, “apache2-foreground”]
+# Run the start script
+
+CMD [”/start.sh”]
