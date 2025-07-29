@@ -84,6 +84,7 @@ $user = null;
 $playlists = [];
 $message = '';
 $messageType = '';
+$hasSpecificPlaylists = false;
 
 if ($isLoggedIn) {
     // Haal user info op
@@ -92,29 +93,66 @@ if ($isLoggedIn) {
     // Haal playlists op
     if ($user) {
         $allPlaylists = [];
-        $url = 'https://api.spotify.com/v1/me/playlists?limit=50';
         
-        while ($url) {
-            $data = spotifyApiCall($url, $_SESSION['access_token']);
-            if ($data && isset($data['items'])) {
-                // Filter alleen playlists waar gebruiker eigenaar van is
-                foreach ($data['items'] as $playlist) {
+        // Check of we specifieke playlists moeten laden
+        $hasSpecificPlaylists = false;
+        foreach ($MY_PLAYLISTS as $id) {
+            if (!empty($id) && strpos($id, 'PLAYLIST_ID') === false) {
+                $hasSpecificPlaylists = true;
+                break;
+            }
+        }
+        
+        if ($hasSpecificPlaylists) {
+            // Laad alleen specifieke playlists (VEEL SNELLER!)
+            foreach ($MY_PLAYLISTS as $playlistId) {
+                // Skip lege entries of placeholder IDs
+                if (empty($playlistId) || strpos($playlistId, 'PLAYLIST_ID') !== false) continue;
+                
+                // Haal playlist info op
+                $playlist = spotifyApiCall(
+                    "https://api.spotify.com/v1/playlists/$playlistId?fields=id,name,owner,tracks(total)",
+                    $_SESSION['access_token']
+                );
+                
+                if ($playlist && isset($playlist['id'])) {
+                    // Check of je de eigenaar bent
                     if ($playlist['owner']['id'] === $user['id']) {
-                        // Haal track count op
-                        $tracksInfo = spotifyApiCall(
-                            "https://api.spotify.com/v1/playlists/{$playlist['id']}/tracks?fields=total",
-                            $_SESSION['access_token']
-                        );
-                        
-                        $playlist['track_count'] = $tracksInfo['total'] ?? 0;
+                        $playlist['track_count'] = $playlist['tracks']['total'] ?? 0;
                         $playlist['tracks_to_remove'] = max(0, $playlist['track_count'] - 50);
                         $allPlaylists[] = $playlist;
                     }
+                } else {
+                    // Playlist niet gevonden of geen toegang
+                    error_log("Playlist niet gevonden of geen toegang: $playlistId");
                 }
-                
-                $url = $data['next'] ?? null;
-            } else {
-                break;
+            }
+        } else {
+            // Laad alle playlists (langzamer)
+            $url = 'https://api.spotify.com/v1/me/playlists?limit=50';
+            
+            while ($url) {
+                $data = spotifyApiCall($url, $_SESSION['access_token']);
+                if ($data && isset($data['items'])) {
+                    // Filter alleen playlists waar gebruiker eigenaar van is
+                    foreach ($data['items'] as $playlist) {
+                        if ($playlist['owner']['id'] === $user['id']) {
+                            // Haal track count op
+                            $tracksInfo = spotifyApiCall(
+                                "https://api.spotify.com/v1/playlists/{$playlist['id']}/tracks?fields=total",
+                                $_SESSION['access_token']
+                            );
+                            
+                            $playlist['track_count'] = $tracksInfo['total'] ?? 0;
+                            $playlist['tracks_to_remove'] = max(0, $playlist['track_count'] - 50);
+                            $allPlaylists[] = $playlist;
+                        }
+                    }
+                    
+                    $url = $data['next'] ?? null;
+                } else {
+                    break;
+                }
             }
         }
         
@@ -261,6 +299,32 @@ if (isset($_GET['message'])) {
         <?php if ($message): ?>
             <div class="message <?php echo $messageType; ?>">
                 <?php echo htmlspecialchars($message); ?>
+            </div>
+        <?php endif; ?>
+        
+        <?php if (empty($playlists) && !$hasSpecificPlaylists && $user): ?>
+            <div style="text-align: center; padding: 40px;">
+                <p style="color: #b3b3b3;">Geen playlists gevonden waar je eigenaar van bent.</p>
+                <p style="color: #666; font-size: 14px; margin-top: 10px;">Tip: Voeg specifieke playlist IDs toe in index.php voor snellere laadtijden.</p>
+            </div>
+        <?php endif; ?>
+        
+        <?php if (empty($playlists) && $hasSpecificPlaylists): ?>
+            <div class="message warning">
+                <p><strong>Geen playlists gevonden!</strong> Mogelijke oorzaken:</p>
+                <ul style="margin: 10px 0 0 20px; font-size: 14px; list-style-type: disc;">
+                    <li>De playlist IDs zijn niet correct</li>
+                    <li>Je bent niet de eigenaar van deze playlists</li>
+                    <li>De playlists zijn verwijderd of privé</li>
+                </ul>
+                <p style="margin-top: 10px;"><strong>Hoe vind je je eigen playlist IDs:</strong></p>
+                <ol style="margin: 10px 0 0 20px; font-size: 14px;">
+                    <li>Open Spotify → Ga naar jouw playlist</li>
+                    <li>Klik op ••• → Delen → Link naar playlist kopiëren</li>
+                    <li>Je krijgt: https://open.spotify.com/playlist/<strong>4hOKQuZbraPDIfaGbM3lKI</strong>?si=xxx</li>
+                    <li>Kopieer het vetgedrukte deel (het playlist ID)</li>
+                    <li>Plak het ID in de $MY_PLAYLISTS array bovenin index.php</li>
+                </ol>
             </div>
         <?php endif; ?>
         
