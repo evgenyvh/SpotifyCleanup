@@ -121,6 +121,10 @@ if ($isLoggedIn) {
                         $playlist['track_count'] = $playlist['tracks']['total'] ?? 0;
                         $playlist['tracks_to_remove'] = max(0, $playlist['track_count'] - 50);
                         $allPlaylists[] = $playlist;
+                    } else {
+                        // Niet de eigenaar - kan niet bewerkt worden
+                        error_log("Geen eigenaar van playlist: " . $playlist['name'] . " (ID: $playlistId)");
+                    }
                     }
                 } else {
                     // Playlist niet gevonden of geen toegang
@@ -311,20 +315,13 @@ if (isset($_GET['message'])) {
         
         <?php if (empty($playlists) && $hasSpecificPlaylists): ?>
             <div class="message warning">
-                <p><strong>Geen playlists gevonden!</strong> Mogelijke oorzaken:</p>
+                <p><strong>Geen van de 8 playlists gevonden!</strong> Mogelijke oorzaken:</p>
                 <ul style="margin: 10px 0 0 20px; font-size: 14px; list-style-type: disc;">
-                    <li>De playlist IDs zijn niet correct</li>
-                    <li>Je bent niet de eigenaar van deze playlists</li>
-                    <li>De playlists zijn verwijderd of privé</li>
+                    <li>Je bent uitgelogd bij Spotify</li>
+                    <li>De playlists zijn verwijderd of privé gemaakt</li>
+                    <li>Je bent niet meer de eigenaar van deze playlists</li>
                 </ul>
-                <p style="margin-top: 10px;"><strong>Hoe vind je je eigen playlist IDs:</strong></p>
-                <ol style="margin: 10px 0 0 20px; font-size: 14px;">
-                    <li>Open Spotify → Ga naar jouw playlist</li>
-                    <li>Klik op ••• → Delen → Link naar playlist kopiëren</li>
-                    <li>Je krijgt: https://open.spotify.com/playlist/<strong>4hOKQuZbraPDIfaGbM3lKI</strong>?si=xxx</li>
-                    <li>Kopieer het vetgedrukte deel (het playlist ID)</li>
-                    <li>Plak het ID in de $MY_PLAYLISTS array bovenin index.php</li>
-                </ol>
+                <p style="margin-top: 10px;">Probeer opnieuw in te loggen of check je playlists in Spotify.</p>
             </div>
         <?php endif; ?>
         
@@ -354,6 +351,7 @@ if (isset($_GET['message'])) {
                                value="<?php echo $playlist['id']; ?>" 
                                id="playlist-<?php echo $playlist['id']; ?>"
                                class="checkbox"
+                               data-tracks-to-remove="<?php echo $playlist['tracks_to_remove']; ?>"
                                onclick="event.stopPropagation()">
                         
                         <h3><?php echo htmlspecialchars($playlist['name']); ?></h3>
@@ -423,8 +421,22 @@ if (isset($_GET['message'])) {
     function updateSelectedCount() {
         const checkboxes = document.querySelectorAll('input[type="checkbox"]:checked');
         const count = checkboxes.length;
+        let totalToRemove = 0;
+        
+        checkboxes.forEach(checkbox => {
+            totalToRemove += parseInt(checkbox.getAttribute('data-tracks-to-remove') || 0);
+        });
+        
         document.getElementById('selectedCount').textContent = count;
         document.getElementById('cleanButton').disabled = count === 0;
+        
+        const totalElement = document.getElementById('totalToRemove');
+        if (totalToRemove > 0) {
+            totalElement.style.display = 'block';
+            totalElement.querySelector('strong').textContent = totalToRemove;
+        } else {
+            totalElement.style.display = 'none';
+        }
     }
     
     // Initialize checkboxes
