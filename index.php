@@ -221,232 +221,17 @@ if (isset($_GET['message'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#1db954">
     <title>Spotify Playlist Cleaner</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-```
-    body {
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-        background-color: #f5f5f5;
-        color: #333;
-        line-height: 1.6;
-    }
-    
-    .container {
-        max-width: 1200px;
-        margin: 0 auto;
-        padding: 0 20px;
-    }
-    
-    header {
-        background-color: white;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        padding: 1rem 0;
-        margin-bottom: 2rem;
-    }
-    
-    .header-content {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-    
-    .logo {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        font-size: 1.5rem;
-        font-weight: bold;
-        color: #1db954;
-    }
-    
-    .user-info {
-        display: flex;
-        align-items: center;
-        gap: 20px;
-    }
-    
-    .btn {
-        display: inline-block;
-        padding: 10px 20px;
-        background-color: #1db954;
-        color: white;
-        text-decoration: none;
-        border-radius: 25px;
-        border: none;
-        cursor: pointer;
-        font-size: 1rem;
-        transition: background-color 0.3s;
-    }
-    
-    .btn:hover {
-        background-color: #1ed760;
-    }
-    
-    .btn-secondary {
-        background-color: #535353;
-    }
-    
-    .btn-secondary:hover {
-        background-color: #727272;
-    }
-    
-    .login-container {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        min-height: 70vh;
-    }
-    
-    .login-box {
-        background: white;
-        padding: 3rem;
-        border-radius: 10px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        text-align: center;
-        max-width: 400px;
-    }
-    
-    .login-box h1 {
-        margin-bottom: 1rem;
-        color: #1db954;
-    }
-    
-    .login-box p {
-        margin-bottom: 2rem;
-        color: #666;
-    }
-    
-    .action-bar {
-        background: white;
-        padding: 1rem;
-        border-radius: 8px;
-        margin-bottom: 2rem;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 1rem;
-    }
-    
-    .playlist-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-        gap: 1rem;
-        margin-bottom: 2rem;
-    }
-    
-    .playlist-card {
-        background: white;
-        padding: 1.5rem;
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        cursor: pointer;
-        transition: transform 0.2s, box-shadow 0.2s;
-        position: relative;
-    }
-    
-    .playlist-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-    }
-    
-    .playlist-card.selected {
-        border: 2px solid #1db954;
-        background-color: #f0fdf4;
-    }
-    
-    .playlist-card h3 {
-        margin-bottom: 0.5rem;
-        font-size: 1.1rem;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-    
-    .playlist-stats {
-        display: flex;
-        justify-content: space-between;
-        margin-top: 0.5rem;
-        font-size: 0.9rem;
-    }
-    
-    .track-count {
-        font-weight: bold;
-    }
-    
-    .track-count.excess {
-        color: #ff6b6b;
-    }
-    
-    .remove-count {
-        color: #ff6b6b;
-        font-weight: bold;
-    }
-    
-    .checkbox {
-        position: absolute;
-        top: 1rem;
-        right: 1rem;
-        width: 20px;
-        height: 20px;
-    }
-    
-    .message {
-        padding: 1rem;
-        border-radius: 8px;
-        margin-bottom: 2rem;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-    }
-    
-    .message.success {
-        background-color: #d4edda;
-        color: #155724;
-        border: 1px solid #c3e6cb;
-    }
-    
-    .message.warning {
-        background-color: #fff3cd;
-        color: #856404;
-        border: 1px solid #ffeaa7;
-    }
-    
-    .icon {
-        width: 24px;
-        height: 24px;
-        display: inline-block;
-        vertical-align: middle;
-    }
-    
-    @media (max-width: 768px) {
-        .playlist-grid {
-            grid-template-columns: 1fr;
-        }
-        
-        .action-bar {
-            flex-direction: column;
-            align-items: stretch;
-        }
-    }
-</style>
-```
-
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <header>
         <div class="container">
             <div class="header-content">
                 <div class="logo">
-                    <svg class="icon" viewBox="0 0 24 24" fill="#1db954">
-                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                    <svg class="icon" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
                     </svg>
                     Playlist Cleaner
                 </div>
@@ -466,13 +251,10 @@ if (isset($_GET['message'])) {
         <div class="login-container">
             <div class="login-box">
                 <h1>Spotify Playlist Cleaner</h1>
-                <p>Houd je playlists automatisch op 50 tracks door de oudste nummers te verwijderen.</p>
+                <p>Houd je playlists automatisch op 50 tracks door de oudste nummers te verwijderen wanneer je nieuwe toevoegt.</p>
                 <a href="https://accounts.spotify.com/authorize?client_id=<?php echo SPOTIFY_CLIENT_ID; ?>&response_type=code&redirect_uri=<?php echo urlencode(REDIRECT_URI); ?>&scope=<?php echo urlencode(SCOPES); ?>" class="btn">
                     Login met Spotify
                 </a>
-                <p style="margin-top: 1rem; font-size: 0.8rem; color: #999;">
-                    Redirect URI: <?php echo REDIRECT_URI; ?>
-                </p>
             </div>
         </div>
     <?php else: ?>
@@ -490,7 +272,7 @@ if (isset($_GET['message'])) {
                         Playlists met meer dan 50 tracks: <?php echo count(array_filter($playlists, function($p) { return $p['track_count'] > 50; })); ?>
                     </p>
                 </div>
-                <div style="display: flex; gap: 10px;">
+                <div class="action-buttons" style="display: flex; gap: 10px;">
                     <button type="button" onclick="selectAllExcess()" class="btn btn-secondary">
                         Selecteer alle 50+
                     </button>
