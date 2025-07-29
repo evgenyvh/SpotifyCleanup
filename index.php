@@ -89,12 +89,32 @@ function balancePlaylists($playlists, $accessToken) {
         }
     }
 
-    // Verplaatsen
+    // Alle bestaande nummers per playlist verzamelen (voor duplicate-check)
+    $existingTracks = [];
+    foreach ($playlistTracks as $pid => $tracks) {
+        $existingTracks[$pid] = array_map(fn($t) => $t['track']['uri'], $tracks);
+    }
+
+    // Verplaatsen zonder duplicaten
     foreach ($surplus as $pid => $extra) {
         $tracksToMove = array_splice($playlistTracks[$pid], 0, $extra);
         foreach ($deficit as $did => $needed) {
             if ($needed <= 0) continue;
-            $moveBatch = array_splice($tracksToMove, 0, $needed);
+
+            // Alleen tracks toevoegen die nog niet bestaan in doelplaylist
+            $filteredTracks = array_filter($tracksToMove, function($t) use ($existingTracks, $did) {
+                return !in_array($t['track']['uri'], $existingTracks[$did]);
+            });
+
+            if (empty($filteredTracks)) continue;
+
+            // Voeg URIs toe aan bestaande lijst zodat we later niet dubbel toevoegen
+            foreach ($filteredTracks as $ft) {
+                $existingTracks[$did][] = $ft['track']['uri'];
+            }
+
+            // Beperk tot aantal dat nodig is
+            $moveBatch = array_slice($filteredTracks, 0, $needed);
             $uris = array_map(fn($t) => $t['track']['uri'], $moveBatch);
 
             if (!empty($uris)) {
