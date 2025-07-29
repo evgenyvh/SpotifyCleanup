@@ -4,8 +4,17 @@ session_start();
 // Spotify App Configuratie
 define('SPOTIFY_CLIENT_ID', '01b1208bd01340dfab28bf44f3f1628d');
 define('SPOTIFY_CLIENT_SECRET', '5cd2e26f09954456be09cf7d529e5729');
-define('REDIRECT_URI', 'https://spotifycleanup.onrender.com'); // Vervang met je EXACTE Render URL!
+define('REDIRECT_URI', 'https://spotifycleanup.onrender.com'); 
 define('SCOPES', 'playlist-read-private playlist-modify-public playlist-modify-private');
+
+// Specifieke playlists die geladen moeten worden
+$MY_PLAYLISTS = [
+    '4NowFcgobU419IvwzO30UU', // jouw eerste playlist
+    'PASTE_PLAYLIST_ID_2_HIER',
+    'PASTE_PLAYLIST_ID_3_HIER',
+    'PASTE_PLAYLIST_ID_4_HIER',
+    'PASTE_PLAYLIST_ID_5_HIER'
+];
 
 // Helper functie voor API calls
 function spotifyApiCall($url, $accessToken, $method = 'GET', $data = null) {
@@ -29,7 +38,6 @@ function spotifyApiCall($url, $accessToken, $method = 'GET', $data = null) {
     curl_close($ch);
     
     if ($httpCode === 401) {
-        // Token verlopen
         unset($_SESSION['access_token']);
         header('Location: /');
         exit;
@@ -41,8 +49,6 @@ function spotifyApiCall($url, $accessToken, $method = 'GET', $data = null) {
 // OAuth Callback Handler
 if (isset($_GET['code'])) {
     $code = $_GET['code'];
-    
-    // Wissel code voor access token
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, 'https://accounts.spotify.com/api/token');
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -78,87 +84,38 @@ if (isset($_GET['logout'])) {
     exit;
 }
 
-// Check of gebruiker is ingelogd
 $isLoggedIn = isset($_SESSION['access_token']);
 $user = null;
 $playlists = [];
 $message = '';
 $messageType = '';
-$hasSpecificPlaylists = false;
+$hasSpecificPlaylists = true; // altijd true omdat we eigen lijst gebruiken
 
 if ($isLoggedIn) {
-    // Haal user info op
     $user = spotifyApiCall('https://api.spotify.com/v1/me', $_SESSION['access_token']);
     
-    // Haal playlists op
     if ($user) {
         $allPlaylists = [];
-        
-        // Check of we specifieke playlists moeten laden
-        $hasSpecificPlaylists = false;
-        foreach ($MY_PLAYLISTS as $id) {
-            if (!empty($id) && strpos($id, 'PLAYLIST_ID') === false) {
-                $hasSpecificPlaylists = true;
-                break;
-            }
-        }
-        
-        if ($hasSpecificPlaylists) {
-            // Laad alleen specifieke playlists (VEEL SNELLER!)
-            foreach ($MY_PLAYLISTS as $playlistId) {
-                // Skip lege entries of placeholder IDs
-                if (empty($playlistId) || strpos($playlistId, 'PLAYLIST_ID') !== false) continue;
-                
-                // Haal playlist info op
-                $playlist = spotifyApiCall(
-                    "https://api.spotify.com/v1/playlists/$playlistId?fields=id,name,owner,tracks(total)",
-                    $_SESSION['access_token']
-                );
-                
-                if ($playlist && isset($playlist['id'])) {
-                    // Check of je de eigenaar bent
-                    if ($playlist['owner']['id'] === $user['id']) {
-                        $playlist['track_count'] = $playlist['tracks']['total'] ?? 0;
-                        $playlist['tracks_to_remove'] = max(0, $playlist['track_count'] - 50);
-                        $allPlaylists[] = $playlist;
-                    } else {
-                        // Niet de eigenaar - kan niet bewerkt worden
-                        error_log("Geen eigenaar van playlist: " . $playlist['name'] . " (ID: $playlistId)");
-                    }
-                } else {
-                    // Playlist niet gevonden of geen toegang
-                    error_log("Playlist niet gevonden of geen toegang: $playlistId");
-                }
-            }
-        } else {
-            // Laad alle playlists (langzamer)
-            $url = 'https://api.spotify.com/v1/me/playlists?limit=50';
+        foreach ($MY_PLAYLISTS as $playlistId) {
+            if (empty($playlistId)) continue;
             
-            while ($url) {
-                $data = spotifyApiCall($url, $_SESSION['access_token']);
-                if ($data && isset($data['items'])) {
-                    // Filter alleen playlists waar gebruiker eigenaar van is
-                    foreach ($data['items'] as $playlist) {
-                        if ($playlist['owner']['id'] === $user['id']) {
-                            // Haal track count op
-                            $tracksInfo = spotifyApiCall(
-                                "https://api.spotify.com/v1/playlists/{$playlist['id']}/tracks?fields=total",
-                                $_SESSION['access_token']
-                            );
-                            
-                            $playlist['track_count'] = $tracksInfo['total'] ?? 0;
-                            $playlist['tracks_to_remove'] = max(0, $playlist['track_count'] - 50);
-                            $allPlaylists[] = $playlist;
-                        }
-                    }
-                    
-                    $url = $data['next'] ?? null;
+            $playlist = spotifyApiCall(
+                "https://api.spotify.com/v1/playlists/$playlistId?fields=id,name,owner,tracks(total)",
+                $_SESSION['access_token']
+            );
+            
+            if ($playlist && isset($playlist['id'])) {
+                if ($playlist['owner']['id'] === $user['id']) {
+                    $playlist['track_count'] = $playlist['tracks']['total'] ?? 0;
+                    $playlist['tracks_to_remove'] = max(0, $playlist['track_count'] - 50);
+                    $allPlaylists[] = $playlist;
                 } else {
-                    break;
+                    error_log("Geen eigenaar van playlist: " . $playlist['name'] . " (ID: $playlistId)");
                 }
+            } else {
+                error_log("Playlist niet gevonden of geen toegang: $playlistId");
             }
         }
-        
         $playlists = $allPlaylists;
     }
 }
@@ -170,7 +127,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['playlists']) && $isLo
     $errors = [];
     
     foreach ($selectedPlaylists as $playlistId) {
-        // Zoek playlist in onze lijst
         $playlist = null;
         foreach ($playlists as $p) {
             if ($p['id'] === $playlistId) {
@@ -184,7 +140,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['playlists']) && $isLo
         }
         
         try {
-            // Haal alle tracks op
             $allTracks = [];
             $url = "https://api.spotify.com/v1/playlists/$playlistId/tracks?fields=items(added_at,track(uri)),next";
             
@@ -198,16 +153,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['playlists']) && $isLo
                 }
             }
             
-            // Sorteer op datum toegevoegd (oudste eerst)
             usort($allTracks, function($a, $b) {
                 return strtotime($a['added_at']) - strtotime($b['added_at']);
             });
             
-            // Bepaal hoeveel tracks te verwijderen
             $tracksToRemove = count($allTracks) - 50;
             if ($tracksToRemove <= 0) continue;
             
-            // Verwijder oudste tracks (max 100 per keer)
             $tracksToDelete = array_slice($allTracks, 0, $tracksToRemove);
             
             for ($i = 0; $i < count($tracksToDelete); $i += 100) {
@@ -227,7 +179,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['playlists']) && $isLo
             }
             
             $cleanedCount++;
-            
         } catch (Exception $e) {
             $errors[] = $playlist['name'];
         }
@@ -243,21 +194,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['playlists']) && $isLo
         $messageType = 'warning';
     }
     
-    // Herlaad playlists voor nieuwe counts
     header("Location: /?message=" . urlencode($message) . "&type=$messageType");
     exit;
 }
 
-// Check voor berichten
 if (isset($_GET['message'])) {
     $message = $_GET['message'];
     $messageType = $_GET['type'] ?? 'info';
 }
-
 ?>
 
 <!DOCTYPE html>
-
 <html lang="nl">
 <head>
     <meta charset="UTF-8">
@@ -267,32 +214,31 @@ if (isset($_GET['message'])) {
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <header>
-        <div class="container">
-            <div class="header-content">
-                <div class="logo">
-                    <svg class="icon" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
-                    </svg>
-                    Playlist Cleaner
-                </div>
-                <?php if ($isLoggedIn && $user): ?>
-                    <div class="user-info">
-                        <span>Hallo, <?php echo htmlspecialchars($user['display_name']); ?></span>
-                        <a href="?logout=1" class="btn btn-secondary">Uitloggen</a>
-                    </div>
-                <?php endif; ?>
+<header>
+    <div class="container">
+        <div class="header-content">
+            <div class="logo">
+                <svg class="icon" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
+                </svg>
+                Playlist Cleaner
             </div>
+            <?php if ($isLoggedIn && $user): ?>
+                <div class="user-info">
+                    <span>Hallo, <?php echo htmlspecialchars($user['display_name']); ?></span>
+                    <a href="?logout=1" class="btn btn-secondary">Uitloggen</a>
+                </div>
+            <?php endif; ?>
         </div>
-    </header>
+    </div>
+</header>
 
-```
 <div class="container">
     <?php if (!$isLoggedIn): ?>
         <div class="login-container">
             <div class="login-box">
                 <h1>Spotify Playlist Cleaner</h1>
-                <p>Houd je playlists automatisch op 50 tracks door de oudste nummers te verwijderen wanneer je nieuwe toevoegt.</p>
+                <p>Houd je playlists automatisch op 50 tracks door de oudste nummers te verwijderen.</p>
                 <a href="https://accounts.spotify.com/authorize?client_id=<?php echo SPOTIFY_CLIENT_ID; ?>&response_type=code&redirect_uri=<?php echo urlencode(REDIRECT_URI); ?>&scope=<?php echo urlencode(SCOPES); ?>" class="btn">
                     Login met Spotify
                 </a>
@@ -305,22 +251,10 @@ if (isset($_GET['message'])) {
             </div>
         <?php endif; ?>
         
-        <?php if (empty($playlists) && !$hasSpecificPlaylists && $user): ?>
-            <div style="text-align: center; padding: 40px;">
-                <p style="color: #b3b3b3;">Geen playlists gevonden waar je eigenaar van bent.</p>
-                <p style="color: #666; font-size: 14px; margin-top: 10px;">Tip: Voeg specifieke playlist IDs toe in index.php voor snellere laadtijden.</p>
-            </div>
-        <?php endif; ?>
-        
-        <?php if (empty($playlists) && $hasSpecificPlaylists): ?>
+        <?php if (empty($playlists)): ?>
             <div class="message warning">
-                <p><strong>Geen van de 8 playlists gevonden!</strong> Mogelijke oorzaken:</p>
-                <ul style="margin: 10px 0 0 20px; font-size: 14px; list-style-type: disc;">
-                    <li>Je bent uitgelogd bij Spotify</li>
-                    <li>De playlists zijn verwijderd of privé gemaakt</li>
-                    <li>Je bent niet meer de eigenaar van deze playlists</li>
-                </ul>
-                <p style="margin-top: 10px;">Probeer opnieuw in te loggen of check je playlists in Spotify.</p>
+                <p><strong>Geen van de specifieke playlists gevonden!</strong></p>
+                <p>Controleer of je nog steeds eigenaar bent en of de IDs correct zijn.</p>
             </div>
         <?php endif; ?>
         
@@ -383,76 +317,59 @@ if (isset($_GET['message'])) {
 </div>
 
 <script>
-    function togglePlaylist(playlistId) {
-        const checkbox = document.getElementById('playlist-' + playlistId);
-        const card = checkbox.closest('.playlist-card');
+function togglePlaylist(playlistId) {
+    const checkbox = document.getElementById('playlist-' + playlistId);
+    const card = checkbox.closest('.playlist-card');
+    
+    checkbox.checked = !checkbox.checked;
+    
+    if (checkbox.checked) {
+        card.classList.add('selected');
+    } else {
+        card.classList.remove('selected');
+    }
+    
+    updateSelectedCount();
+}
+
+function selectAllExcess() {
+    const cards = document.querySelectorAll('.playlist-card');
+    
+    cards.forEach(card => {
+        const hasExcess = card.querySelector('.remove-count');
+        const checkbox = card.querySelector('input[type="checkbox"]');
         
-        checkbox.checked = !checkbox.checked;
-        
-        if (checkbox.checked) {
+        if (hasExcess) {
+            checkbox.checked = true;
+            card.classList.add('selected');
+        } else {
+            checkbox.checked = false;
+            card.classList.remove('selected');
+        }
+    });
+    
+    updateSelectedCount();
+}
+
+function updateSelectedCount() {
+    const checkboxes = document.querySelectorAll('input[type="checkbox"]:checked');
+    const count = checkboxes.length;
+    document.getElementById('selectedCount').textContent = count;
+    document.getElementById('cleanButton').disabled = count === 0;
+}
+
+document.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+    checkbox.addEventListener('change', function(e) {
+        e.stopPropagation();
+        const card = this.closest('.playlist-card');
+        if (this.checked) {
             card.classList.add('selected');
         } else {
             card.classList.remove('selected');
         }
-        
         updateSelectedCount();
-    }
-    
-    function selectAllExcess() {
-        const cards = document.querySelectorAll('.playlist-card');
-        
-        cards.forEach(card => {
-            const hasExcess = card.querySelector('.remove-count');
-            const checkbox = card.querySelector('input[type="checkbox"]');
-            
-            if (hasExcess) {
-                checkbox.checked = true;
-                card.classList.add('selected');
-            } else {
-                checkbox.checked = false;
-                card.classList.remove('selected');
-            }
-        });
-        
-        updateSelectedCount();
-    }
-    
-    function updateSelectedCount() {
-        const checkboxes = document.querySelectorAll('input[type="checkbox"]:checked');
-        const count = checkboxes.length;
-        let totalToRemove = 0;
-        
-        checkboxes.forEach(checkbox => {
-            totalToRemove += parseInt(checkbox.getAttribute('data-tracks-to-remove') || 0);
-        });
-        
-        document.getElementById('selectedCount').textContent = count;
-        document.getElementById('cleanButton').disabled = count === 0;
-        
-        const totalElement = document.getElementById('totalToRemove');
-        if (totalToRemove > 0) {
-            totalElement.style.display = 'block';
-            totalElement.querySelector('strong').textContent = totalToRemove;
-        } else {
-            totalElement.style.display = 'none';
-        }
-    }
-    
-    // Initialize checkboxes
-    document.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
-        checkbox.addEventListener('change', function(e) {
-            e.stopPropagation();
-            const card = this.closest('.playlist-card');
-            if (this.checked) {
-                card.classList.add('selected');
-            } else {
-                card.classList.remove('selected');
-            }
-            updateSelectedCount();
-        });
     });
+});
 </script>
-```
-
 </body>
 </html>
