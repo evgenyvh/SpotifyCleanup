@@ -1,6 +1,7 @@
 <?php
 session_start();
 
+
 // Spotify App Configuratie
 define('SPOTIFY_CLIENT_ID', '01b1208bd01340dfab28bf44f3f1628d');
 define('SPOTIFY_CLIENT_SECRET', '5cd2e26f09954456be09cf7d529e5729');
