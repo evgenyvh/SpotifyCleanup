@@ -9,11 +9,14 @@ define('SCOPES', 'playlist-read-private playlist-modify-public playlist-modify-p
 
 // Specifieke playlists die geladen moeten worden
 $MY_PLAYLISTS = [
-    '4NowFcgobU419IvwzO30UU', // jouw eerste playlist
-    'PASTE_PLAYLIST_ID_2_HIER',
-    'PASTE_PLAYLIST_ID_3_HIER',
-    'PASTE_PLAYLIST_ID_4_HIER',
-    'PASTE_PLAYLIST_ID_5_HIER'
+    '4NowFcgobU419IvwzO30UU', // New Talents
+    '7lVoiUPCS6ybdyM2N4ft3y', // Next Best
+    '35vAphzyCEvVNjmfFSrZ3w', // That Radio Song
+    '2b0mMUJSxpCMthgYhlzsu8', // Unique Vibes
+    '2jHC7HxtpRcuQ7JBEdxLK4', // Daily Drive
+    '4chcAHApol5NtOOaxrw1KL', // Rising Stars
+    '3WkmShRLy44QT1SeOCYBqZ', // Early Morning Coffee
+    '36d0oGY8XUWU0fkZdLL3Sw'  // Music Roulette
 ];
 
 // Helper functie voor API calls
