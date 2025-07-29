@@ -1,0 +1,438 @@
+/* Reset & Base Styles */
+
+- {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  }
+
+:root {
+–spotify-green: #1db954;
+–spotify-green-hover: #1ed760;
+–spotify-black: #191414;
+–dark-gray: #282828;
+–medium-gray: #535353;
+–light-gray: #b3b3b3;
+–background: #121212;
+–surface: #181818;
+–surface-hover: #282828;
+–text-primary: #ffffff;
+–text-secondary: #b3b3b3;
+–error: #f15e6c;
+–success: #1db954;
+–warning: #ffa42b;
+–shadow: rgba(0, 0, 0, 0.3);
+}
+
+body {
+font-family: -apple-system, BlinkMacSystemFont, ‘Segoe UI’, ‘Roboto’, ‘Helvetica’, ‘Arial’, sans-serif;
+background-color: var(–background);
+color: var(–text-primary);
+line-height: 1.6;
+min-height: 100vh;
+}
+
+/* Container */
+.container {
+max-width: 1400px;
+margin: 0 auto;
+padding: 0 24px;
+}
+
+/* Header */
+header {
+background-color: var(–surface);
+backdrop-filter: blur(10px);
+position: sticky;
+top: 0;
+z-index: 100;
+border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.header-content {
+display: flex;
+justify-content: space-between;
+align-items: center;
+padding: 16px 0;
+}
+
+.logo {
+display: flex;
+align-items: center;
+gap: 12px;
+font-size: 1.5rem;
+font-weight: 700;
+color: var(–text-primary);
+letter-spacing: -0.5px;
+}
+
+.logo svg {
+filter: drop-shadow(0 0 8px var(–spotify-green));
+}
+
+.user-info {
+display: flex;
+align-items: center;
+gap: 24px;
+}
+
+.user-info span {
+color: var(–text-secondary);
+font-size: 14px;
+}
+
+/* Buttons */
+.btn {
+display: inline-flex;
+align-items: center;
+justify-content: center;
+padding: 12px 32px;
+background-color: var(–spotify-green);
+color: var(–spotify-black);
+text-decoration: none;
+border-radius: 500px;
+border: none;
+cursor: pointer;
+font-size: 14px;
+font-weight: 700;
+letter-spacing: 0.5px;
+text-transform: uppercase;
+transition: all 0.3s ease;
+box-shadow: 0 4px 12px rgba(29, 185, 84, 0.3);
+}
+
+.btn:hover {
+background-color: var(–spotify-green-hover);
+transform: scale(1.05);
+box-shadow: 0 6px 20px rgba(29, 185, 84, 0.4);
+}
+
+.btn:active {
+transform: scale(0.98);
+}
+
+.btn:disabled {
+background-color: var(–medium-gray);
+color: var(–text-secondary);
+cursor: not-allowed;
+box-shadow: none;
+}
+
+.btn:disabled:hover {
+transform: none;
+}
+
+.btn-secondary {
+background-color: transparent;
+color: var(–text-primary);
+border: 1px solid var(–text-secondary);
+box-shadow: none;
+}
+
+.btn-secondary:hover {
+background-color: var(–text-primary);
+color: var(–spotify-black);
+border-color: var(–text-primary);
+box-shadow: 0 4px 12px rgba(255, 255, 255, 0.1);
+}
+
+/* Login Container */
+.login-container {
+display: flex;
+justify-content: center;
+align-items: center;
+min-height: calc(100vh - 80px);
+padding: 40px 20px;
+}
+
+.login-box {
+background: linear-gradient(135deg, var(–surface) 0%, var(–dark-gray) 100%);
+padding: 48px;
+border-radius: 24px;
+box-shadow: 0 8px 32px var(–shadow);
+text-align: center;
+max-width: 480px;
+width: 100%;
+border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.login-box h1 {
+margin-bottom: 16px;
+font-size: 2.5rem;
+font-weight: 900;
+background: linear-gradient(135deg, var(–spotify-green) 0%, var(–spotify-green-hover) 100%);
+-webkit-background-clip: text;
+-webkit-text-fill-color: transparent;
+background-clip: text;
+}
+
+.login-box p {
+margin-bottom: 32px;
+color: var(–text-secondary);
+font-size: 16px;
+line-height: 1.5;
+}
+
+/* Action Bar */
+.action-bar {
+background: var(–surface);
+padding: 20px 24px;
+border-radius: 12px;
+margin: 32px 0;
+box-shadow: 0 4px 12px var(–shadow);
+display: flex;
+justify-content: space-between;
+align-items: center;
+flex-wrap: wrap;
+gap: 16px;
+border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.action-bar p {
+font-size: 16px;
+margin: 0;
+}
+
+.action-bar p:last-of-type {
+font-size: 14px;
+color: var(–text-secondary);
+}
+
+/* Messages */
+.message {
+padding: 16px 24px;
+border-radius: 8px;
+margin: 24px 0;
+display: flex;
+align-items: center;
+gap: 12px;
+font-weight: 500;
+animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+from {
+transform: translateY(-20px);
+opacity: 0;
+}
+to {
+transform: translateY(0);
+opacity: 1;
+}
+}
+
+.message.success {
+background-color: rgba(29, 185, 84, 0.1);
+color: var(–spotify-green);
+border: 1px solid rgba(29, 185, 84, 0.3);
+}
+
+.message.warning {
+background-color: rgba(255, 164, 43, 0.1);
+color: var(–warning);
+border: 1px solid rgba(255, 164, 43, 0.3);
+}
+
+/* Playlist Grid */
+.playlist-grid {
+display: grid;
+grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+gap: 24px;
+margin-bottom: 48px;
+}
+
+/* Playlist Card */
+.playlist-card {
+background: var(–surface);
+padding: 24px;
+border-radius: 8px;
+cursor: pointer;
+transition: all 0.2s ease;
+position: relative;
+border: 2px solid transparent;
+overflow: hidden;
+}
+
+.playlist-card::before {
+content: ‘’;
+position: absolute;
+top: 0;
+left: 0;
+right: 0;
+height: 4px;
+background: linear-gradient(90deg, var(–spotify-green) 0%, var(–spotify-green-hover) 100%);
+transform: scaleX(0);
+transform-origin: left;
+transition: transform 0.3s ease;
+}
+
+.playlist-card:hover {
+background-color: var(–surface-hover);
+transform: translateY(-4px);
+box-shadow: 0 8px 24px var(–shadow);
+}
+
+.playlist-card:hover::before {
+transform: scaleX(1);
+}
+
+.playlist-card.selected {
+border-color: var(–spotify-green);
+background-color: rgba(29, 185, 84, 0.1);
+}
+
+.playlist-card h3 {
+margin-bottom: 12px;
+font-size: 18px;
+font-weight: 700;
+overflow: hidden;
+text-overflow: ellipsis;
+white-space: nowrap;
+color: var(–text-primary);
+}
+
+.playlist-stats {
+display: flex;
+justify-content: space-between;
+margin-top: 16px;
+font-size: 14px;
+color: var(–text-secondary);
+}
+
+.track-count {
+font-weight: 600;
+color: var(–text-primary);
+}
+
+.track-count.excess {
+color: var(–warning);
+}
+
+.remove-count {
+color: var(–error);
+font-weight: 600;
+}
+
+.playlist-card p {
+margin-top: 12px;
+color: var(–spotify-green);
+font-size: 13px;
+font-weight: 600;
+display: flex;
+align-items: center;
+gap: 4px;
+}
+
+/* Checkbox */
+.checkbox {
+position: absolute;
+top: 20px;
+right: 20px;
+width: 24px;
+height: 24px;
+cursor: pointer;
+appearance: none;
+background-color: transparent;
+border: 2px solid var(–text-secondary);
+border-radius: 4px;
+transition: all 0.2s ease;
+}
+
+.checkbox:checked {
+background-color: var(–spotify-green);
+border-color: var(–spotify-green);
+}
+
+.checkbox:checked::after {
+content: ‘✓’;
+position: absolute;
+top: 50%;
+left: 50%;
+transform: translate(-50%, -50%);
+color: var(–spotify-black);
+font-weight: bold;
+font-size: 16px;
+}
+
+/* Icons */
+.icon {
+width: 24px;
+height: 24px;
+display: inline-block;
+vertical-align: middle;
+}
+
+/* Loading State */
+.loading {
+display: inline-block;
+width: 20px;
+height: 20px;
+border: 3px solid var(–text-secondary);
+border-radius: 50%;
+border-top-color: var(–spotify-green);
+animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+to { transform: rotate(360deg); }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+.container {
+padding: 0 16px;
+}
+
+```
+.header-content {
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.logo {
+    font-size: 1.25rem;
+}
+
+.playlist-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+}
+
+.action-bar {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+}
+
+.login-box {
+    padding: 32px 24px;
+}
+
+.login-box h1 {
+    font-size: 2rem;
+}
+
+.btn {
+    width: 100%;
+}
+```
+
+}
+
+/* Dark scrollbar */
+::-webkit-scrollbar {
+width: 12px;
+}
+
+::-webkit-scrollbar-track {
+background: var(–background);
+}
+
+::-webkit-scrollbar-thumb {
+background: var(–medium-gray);
+border-radius: 6px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+background: var(–light-gray);
+}
