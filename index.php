@@ -127,7 +127,7 @@ if ($isLoggedIn) {
                         error_log("Geen eigenaar van playlist: " . $playlist['name'] . " (ID: $playlistId)");
                     }
                     }
-                } else {
+                else {
                     // Playlist niet gevonden of geen toegang
                     error_log("Playlist niet gevonden of geen toegang: $playlistId");
                 }
