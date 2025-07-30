@@ -12,6 +12,12 @@
   user-select: none;
   }
 
+/* Fix for text selection on necessary elements */
+input, textarea, p, span {
+-webkit-user-select: text;
+user-select: text;
+}
+
 /* Root Variables */
 :root {
 /* Spotify Colors */
@@ -93,8 +99,9 @@ scroll-behavior: smooth;
 
 body {
 font-family: -apple-system, BlinkMacSystemFont, ‘SF Pro Display’, ‘Segoe UI’, ‘Roboto’, ‘Helvetica Neue’, sans-serif;
-background: var(–bg-primary);
-color: var(–text-primary);
+background: var(–bg-primary) !important;
+background-color: #121212 !important;
+color: var(–text-primary) !important;
 line-height: 1.5;
 min-height: 100vh;
 overflow-x: hidden;
@@ -140,7 +147,8 @@ padding: 0 var(–spacing-md);
 
 /* Header */
 header {
-background: rgba(18, 18, 18, 0.95);
+background: rgba(18, 18, 18, 0.98) !important;
+background-color: #121212 !important;
 position: sticky;
 top: 0;
 z-index: 1000;
@@ -164,8 +172,12 @@ align-items: center;
 gap: var(–spacing-sm);
 font-size: var(–font-size-xl);
 font-weight: 800;
-color: var(–text-primary);
+color: #ffffff !important;
 position: relative;
+}
+
+.logo span {
+color: #ffffff !important;
 }
 
 .logo::before {
@@ -236,16 +248,32 @@ transform: scale(0.95);
 /* Primary Button */
 .btn-primary,
 .btn {
-background: linear-gradient(135deg, var(–spotify-green) 0%, var(–spotify-green-light) 100%);
-color: var(–spotify-black);
+background: linear-gradient(135deg, #1db954 0%, #1ed760 100%) !important;
+background-color: #1db954 !important;
+color: #000000 !important;
 box-shadow: var(–shadow-green);
-border: 2px solid transparent;
+border: 2px solid transparent !important;
+text-decoration: none !important;
 }
 
 .btn-primary:hover,
 .btn:hover:not(:disabled) {
+background: linear-gradient(135deg, #1ed760 0%, #1db954 100%) !important;
+background-color: #1ed760 !important;
 transform: translateY(-2px);
 box-shadow: 0 8px 25px rgba(29, 185, 84, 0.4);
+color: #000000 !important;
+}
+
+.btn-primary:active,
+.btn:active {
+transform: scale(0.95);
+color: #000000 !important;
+}
+
+.btn-primary:visited,
+.btn:visited {
+color: #000000 !important;
 }
 
 /* Secondary Button */
@@ -677,6 +705,27 @@ grid-template-columns: repeat(4, 1fr);
 
 input[type="checkbox"] {
     -webkit-appearance: none;
+}
+
+/* Force dark background on iOS */
+body {
+    background: #121212 !important;
+    background-color: #121212 !important;
+}
+
+/* Ensure text is readable */
+h1, h2, h3, h4, h5, h6 {
+    color: #ffffff !important;
+}
+
+p {
+    color: #b3b3b3 !important;
+}
+
+/* Fix for loading dots */
+.loading {
+    border-top-color: #1db954 !important;
+    border-color: #282828 !important;
 }
 ```
 
