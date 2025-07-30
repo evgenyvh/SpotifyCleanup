@@ -242,11 +242,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['playlists']) && $isLo
             $errors[] = $playlist['name'];
         }
     }
-    
-    if ($cleanedCount > 0) {
-        $message = "$cleanedCount playlist(s) succesvol opgeschoond!";
-        $messageType = 'success';
-    }
+    if ($cleanedCount > 0) $message = "$cleanedCount playlist(s) succesvol opgeschoond!";
     if (!empty($errors)) {
         $message .= " Fouten bij: " . implode(', ', $errors);
         $messageType = 'warning';
@@ -257,11 +253,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['playlists']) && $isLo
 
 if (isset($_GET['message'])) {
     $message = $_GET['message'];
-    $messageType = $_GET['type'] ?? 'success';
+    $messageType = $_GET['type'] ?? 'info';
 }
-
-$excessCount = count(array_filter($playlists, fn($p) => $p['track_count'] > 50));
-$totalTracks = array_sum(array_map(fn($p) => $p['track_count'], $playlists));
 ?>
 
 <!DOCTYPE html>
@@ -269,279 +262,246 @@ $totalTracks = array_sum(array_map(fn($p) => $p['track_count'], $playlists));
 <html lang="nl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="theme-color" content="#1db954">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Playlist Cleaner">
-    <title>Spotify Playlist Cleaner</title>
-    <link rel="stylesheet" href="styles.css?v=<?php echo time(); ?>">
-    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%231db954'/><text y='50' x='50' text-anchor='middle' dominant-baseline='middle' font-size='60'>🎵</text></svg>">
-    <style>
-        /* Critical CSS for immediate load */
-        body { 
-            background: #121212 !important; 
-            color: #ffffff !important; 
-            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-        }
-        .logo { color: #ffffff !important; }
-        .btn-primary { 
-            background: #1db954 !important; 
-            color: #000000 !important; 
-            text-decoration: none !important;
-        }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#8b5cf6">
+    <title>Playlist Magic ✨ - Spotify Cleanup Tool</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
-<body style="background: #121212 !important; color: #ffffff !important; visibility: hidden;">
-    <header style="background: #121212 !important;">
-        <div class="container">
-            <div class="header-content">
-                <div class="logo" style="color: #ffffff !important;">
-                    <span style="color: #ffffff !important;">Playlist Cleaner</span>
-                </div>
-                <?php if ($isLoggedIn && $user): ?>
-                    <div class="user-info">
-                        <span>Hallo, <?php echo htmlspecialchars($user['display_name']); ?></span>
-                        <a href="?logout=1" class="btn btn-secondary">Uitloggen</a>
-                    </div>
-                <?php endif; ?>
-            </div>
-        </div>
-    </header>
+<body>
+    <div class="background-animation">
+        <div class="gradient-sphere sphere-1"></div>
+        <div class="gradient-sphere sphere-2"></div>
+        <div class="gradient-sphere sphere-3"></div>
+    </div>
 
 ```
-<main>
-    <div class="container">
-        <?php if (!$isLoggedIn): ?>
-            <div class="login-container">
-                <div class="login-box">
-                    <h1>Spotify Playlist Cleaner</h1>
-                    <p>Houd je playlists automatisch op 50 tracks door de oudste nummers te verwijderen en eerlijk te verdelen tussen je playlists.</p>
-                    <a href="https://accounts.spotify.com/authorize?client_id=<?php echo SPOTIFY_CLIENT_ID; ?>&response_type=code&redirect_uri=<?php echo urlencode(REDIRECT_URI); ?>&scope=<?php echo urlencode(SCOPES); ?>" 
-                       class="btn btn-primary" 
-                       style="background: #1db954 !important; color: #000000 !important; text-decoration: none !important;">
-                        Inloggen met Spotify
-                    </a>
+<nav class="navbar">
+    <div class="nav-container">
+        <div class="nav-brand">
+            <div class="logo-icon">
+                <svg viewBox="0 0 24 24" fill="none">
+                    <path d="M9 19C9 20.1 8.1 21 7 21S5 20.1 5 19 5.9 17 7 17 9 17.9 9 19ZM12 3V13L19 16V6L12 3Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M5 12L12 15V3L5 6V12Z" fill="currentColor" opacity="0.3"/>
+                </svg>
+            </div>
+            <span class="brand-text">Playlist Magic</span>
+        </div>
+        <?php if ($isLoggedIn && $user): ?>
+            <div class="nav-user">
+                <div class="user-avatar">
+                    <?php echo strtoupper(substr($user['display_name'], 0, 1)); ?>
+                </div>
+                <span class="user-name"><?php echo htmlspecialchars($user['display_name']); ?></span>
+                <a href="?logout=1" class="logout-btn">
+                    <svg viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clip-rule="evenodd"/>
+                    </svg>
+                </a>
+            </div>
+        <?php endif; ?>
+    </div>
+</nav>
+
+<main class="main-content">
+    <?php if (!$isLoggedIn): ?>
+        <div class="hero-section">
+            <div class="hero-card">
+                <div class="hero-icon">
+                    <svg viewBox="0 0 48 48" fill="none">
+                        <circle cx="24" cy="24" r="20" stroke="url(#gradient)" stroke-width="3"/>
+                        <path d="M18 30V18L30 24L18 30Z" fill="url(#gradient)"/>
+                        <defs>
+                            <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" style="stop-color:#ec4899"/>
+                                <stop offset="50%" style="stop-color:#8b5cf6"/>
+                                <stop offset="100%" style="stop-color:#3b82f6"/>
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                </div>
+                <h1 class="hero-title">Playlist Magic ✨</h1>
+                <p class="hero-subtitle">
+                    Houd je Spotify playlists fris en georganiseerd.<br>
+                    Automatisch op 50 tracks, eerlijk verdeeld.
+                </p>
+                <div class="feature-badges">
+                    <div class="badge">
+                        <svg viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/>
+                            <path fill-rule="evenodd" d="M4 5a2 2 0 012-2 1 1 0 000 2H6a2 2 0 00-2 2v6a2 2 0 002 2h2a1 1 0 100 2H6a4 4 0 01-4-4V5a4 4 0 014-4z" clip-rule="evenodd"/>
+                        </svg>
+                        Auto-cleanup
+                    </div>
+                    <div class="badge">
+                        <svg viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M2 10a8 8 0 018-8v8h8a8 8 0 11-16 0z"/>
+                            <path d="M12 2.252A8.014 8.014 0 0117.748 8H12V2.252z"/>
+                        </svg>
+                        Balancering
+                    </div>
+                    <div class="badge">
+                        <svg viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"/>
+                        </svg>
+                        Snel & Simpel
+                    </div>
+                </div>
+                <a href="https://accounts.spotify.com/authorize?client_id=<?php echo SPOTIFY_CLIENT_ID; ?>&response_type=code&redirect_uri=<?php echo urlencode(REDIRECT_URI); ?>&scope=<?php echo urlencode(SCOPES); ?>" class="spotify-login-btn">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
+                    </svg>
+                    Verbind met Spotify
+                </a>
+            </div>
+        </div>
+    <?php else: ?>
+        <?php if ($message): ?>
+            <div class="alert alert-<?php echo $messageType; ?>">
+                <div class="alert-content">
+                    <?php if ($messageType === 'success'): ?>
+                        <svg viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                        </svg>
+                    <?php else: ?>
+                        <svg viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                        </svg>
+                    <?php endif; ?>
+                    <span><?php echo htmlspecialchars($message); ?></span>
                 </div>
             </div>
-        <?php else: ?>
-            <?php if ($message): ?>
-                <div class="message <?php echo $messageType; ?>">
-                    <?php echo htmlspecialchars($message); ?>
-                </div>
-            <?php endif; ?>
+        <?php endif; ?>
 
-            <?php if (empty($playlists)): ?>
-                <div class="message warning">
-                    <h3>Geen playlists gevonden</h3>
-                    <p>Er zijn geen van jouw playlists gevonden in de configuratie. Controleer of de playlist IDs correct zijn ingesteld.</p>
+        <form method="POST" id="cleanupForm">
+            <div class="control-panel">
+                <div class="stats-card">
+                    <div class="stat-item">
+                        <div class="stat-number" id="selectedCount">0</div>
+                        <div class="stat-label">Geselecteerd</div>
+                    </div>
+                    <div class="stat-divider"></div>
+                    <div class="stat-item">
+                        <div class="stat-number"><?php echo count(array_filter($playlists, fn($p) => $p['track_count'] > 50)); ?></div>
+                        <div class="stat-label">Boven 50 tracks</div>
+                    </div>
                 </div>
-            <?php else: ?>
-                <form method="POST" id="cleanupForm">
-                    <div class="action-bar">
-                        <div class="action-bar-content">
-                            <div class="action-info">
-                                <p><span id="selectedCount">0</span> playlist(s) geselecteerd</p>
-                                <p>
-                                    <?php echo $excessCount; ?> playlists hebben meer dan 50 tracks • 
-                                    <?php echo $totalTracks; ?> totale tracks
-                                </p>
+                <div class="action-buttons">
+                    <button type="button" onclick="selectAllExcess()" class="btn-secondary">
+                        <svg viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/>
+                            <path fill-rule="evenodd" d="M4 5a2 2 0 012-2 1 1 0 000 2H6a2 2 0 00-2 2v6a2 2 0 002 2h2a1 1 0 100 2H6a4 4 0 01-4-4V5a4 4 0 014-4z" clip-rule="evenodd"/>
+                        </svg>
+                        Selecteer 50+
+                    </button>
+                    <button type="submit" class="btn-primary" id="cleanButton" disabled>
+                        <svg viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/>
+                        </svg>
+                        <span>Clean & Balance</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="playlists-container">
+                <?php foreach ($playlists as $index => $playlist): ?>
+                    <div class="playlist-item" onclick="togglePlaylist('<?php echo $playlist['id']; ?>')">
+                        <input type="checkbox" 
+                               name="playlists[]" 
+                               value="<?php echo $playlist['id']; ?>" 
+                               id="playlist-<?php echo $playlist['id']; ?>" 
+                               class="playlist-checkbox" 
+                               onclick="event.stopPropagation()">
+                        
+                        <div class="playlist-content">
+                            <div class="playlist-icon" style="--color-index: <?php echo $index % 6; ?>">
+                                <svg viewBox="0 0 24 24" fill="none">
+                                    <path d="M9 19C9 20.1 8.1 21 7 21S5 20.1 5 19 5.9 17 7 17 9 17.9 9 19ZM19 19C19 20.1 18.1 21 17 21S15 20.1 15 19 15.9 17 17 17 19 17.9 19 19Z" stroke="currentColor" stroke-width="2"/>
+                                    <path d="M9 19V6L19 3V16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                </svg>
                             </div>
-                            <div class="action-buttons">
-                                <button type="button" onclick="selectAllExcess()" class="btn btn-secondary">
-                                    Selecteer alle 50+
-                                </button>
-                                <button type="submit" class="btn btn-primary" id="cleanButton" disabled>
-                                    <span class="btn-text">Schoon op</span>
-                                    <div class="loading" id="loadingSpinner" style="display: none;"></div>
-                                </button>
+                            
+                            <div class="playlist-info">
+                                <h3 class="playlist-name"><?php echo htmlspecialchars($playlist['name']); ?></h3>
+                                <div class="playlist-meta">
+                                    <span class="track-count <?php echo $playlist['track_count'] > 50 ? 'excess' : 'optimal'; ?>">
+                                        <?php echo $playlist['track_count']; ?> tracks
+                                    </span>
+                                    <?php if ($playlist['tracks_to_remove'] > 0): ?>
+                                        <span class="separator">•</span>
+                                        <span class="remove-count"><?php echo $playlist['tracks_to_remove']; ?> te verwijderen</span>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                            
+                            <div class="playlist-status">
+                                <?php if ($playlist['track_count'] <= 50): ?>
+                                    <div class="status-badge optimal">
+                                        <svg viewBox="0 0 20 20" fill="currentColor">
+                                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                                        </svg>
+                                        Perfect
+                                    </div>
+                                <?php else: ?>
+                                    <div class="status-badge needs-cleanup">
+                                        <svg viewBox="0 0 20 20" fill="currentColor">
+                                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                                        </svg>
+                                        Cleanup nodig
+                                    </div>
+                                <?php endif; ?>
                             </div>
                         </div>
                     </div>
-
-                    <div class="playlist-grid">
-                        <?php foreach ($playlists as $index => $playlist): ?>
-                            <div class="playlist-card" onclick="togglePlaylist('<?php echo $playlist['id']; ?>')" style="animation-delay: <?php echo ($index * 0.05); ?>s">
-                                <input 
-                                    type="checkbox" 
-                                    name="playlists[]" 
-                                    value="<?php echo $playlist['id']; ?>" 
-                                    id="playlist-<?php echo $playlist['id']; ?>" 
-                                    class="checkbox" 
-                                    data-tracks-to-remove="<?php echo $playlist['tracks_to_remove']; ?>" 
-                                    onclick="event.stopPropagation()"
-                                    aria-label="Selecteer <?php echo htmlspecialchars($playlist['name']); ?>"
-                                >
-                                
-                                <h3><?php echo htmlspecialchars($playlist['name']); ?></h3>
-                                
-                                <div class="playlist-stats">
-                                    <div>
-                                        <span>Tracks</span>
-                                        <span class="track-count <?php echo $playlist['track_count'] > 50 ? 'excess' : ''; ?>">
-                                            <?php echo $playlist['track_count']; ?>
-                                        </span>
-                                    </div>
-                                    <?php if ($playlist['tracks_to_remove'] > 0): ?>
-                                        <div>
-                                            <span>Te verwijderen</span>
-                                            <span class="remove-count"><?php echo $playlist['tracks_to_remove']; ?></span>
-                                        </div>
-                                    <?php endif; ?>
-                                </div>
-                                
-                                <?php if ($playlist['track_count'] <= 50): ?>
-                                    <p>✓ Op ideale grootte</p>
-                                <?php endif; ?>
-                            </div>
-                        <?php endforeach; ?>
-                    </div>
-                </form>
-            <?php endif; ?>
-        <?php endif; ?>
-    </div>
+                <?php endforeach; ?>
+            </div>
+        </form>
+    <?php endif; ?>
 </main>
 
 <script>
-    let isSubmitting = false;
+function togglePlaylist(playlistId) {
+    const checkbox = document.getElementById('playlist-' + playlistId);
+    const item = checkbox.closest('.playlist-item');
+    checkbox.checked = !checkbox.checked;
+    item.classList.toggle('selected', checkbox.checked);
+    updateSelectedCount();
+}
 
-    function togglePlaylist(playlistId) {
-        if (isSubmitting) return;
-        
-        const checkbox = document.getElementById('playlist-' + playlistId);
-        const card = checkbox.closest('.playlist-card');
-        
-        checkbox.checked = !checkbox.checked;
-        card.classList.toggle('selected', checkbox.checked);
-        
-        // Add haptic feedback on iOS
-        if (window.navigator && window.navigator.vibrate) {
-            window.navigator.vibrate(10);
-        }
-        
-        updateSelectedCount();
-    }
-
-    function selectAllExcess() {
-        if (isSubmitting) return;
-        
-        const cards = document.querySelectorAll('.playlist-card');
-        let selectedAny = false;
-        
-        cards.forEach(card => {
-            const hasExcess = card.querySelector('.remove-count');
-            const checkbox = card.querySelector('input[type="checkbox"]');
-            
-            if (hasExcess) {
-                checkbox.checked = true;
-                card.classList.add('selected');
-                selectedAny = true;
-            }
-        });
-        
-        if (selectedAny && window.navigator && window.navigator.vibrate) {
-            window.navigator.vibrate([10, 50, 10]);
-        }
-        
-        updateSelectedCount();
-    }
-
-    function updateSelectedCount() {
-        const checkboxes = document.querySelectorAll('input[type="checkbox"]:checked');
-        const count = checkboxes.length;
-        
-        document.getElementById('selectedCount').textContent = count;
-        
-        const cleanButton = document.getElementById('cleanButton');
-        cleanButton.disabled = count === 0 || isSubmitting;
-        
-        // Update button text based on selection
-        const btnText = document.querySelector('.btn-text');
-        if (count === 0) {
-            btnText.textContent = 'Schoon op';
-        } else if (count === 1) {
-            btnText.textContent = 'Schoon 1 playlist op';
-        } else {
-            btnText.textContent = `Schoon ${count} playlists op`;
-        }
-    }
-
-    // Form submission with loading state
-    document.getElementById('cleanupForm')?.addEventListener('submit', function(e) {
-        if (isSubmitting) {
-            e.preventDefault();
-            return;
-        }
-        
-        const selectedCount = document.querySelectorAll('input[type="checkbox"]:checked').length;
-        if (selectedCount === 0) {
-            e.preventDefault();
-            return;
-        }
-        
-        isSubmitting = true;
-        
-        // Show loading state
-        const cleanButton = document.getElementById('cleanButton');
-        const btnText = document.querySelector('.btn-text');
-        const loadingSpinner = document.getElementById('loadingSpinner');
-        
-        btnText.style.display = 'none';
-        loadingSpinner.style.display = 'block';
-        cleanButton.disabled = true;
-        
-        // Disable all checkboxes and cards
-        document.querySelectorAll('.playlist-card').forEach(card => {
-            card.style.pointerEvents = 'none';
-            card.style.opacity = '0.6';
-        });
-        
-        // Add visual feedback
-        if (window.navigator && window.navigator.vibrate) {
-            window.navigator.vibrate([100, 50, 100]);
-        }
+function selectAllExcess() {
+    document.querySelectorAll('.playlist-item').forEach(item => {
+        const hasExcess = item.querySelector('.remove-count');
+        const checkbox = item.querySelector('input[type="checkbox"]');
+        checkbox.checked = !!hasExcess;
+        item.classList.toggle('selected', !!hasExcess);
     });
+    updateSelectedCount();
+}
 
-    // Initialize page
-    document.addEventListener('DOMContentLoaded', function() {
-        // Hide any loading indicators
-        document.body.style.visibility = 'visible';
-        
-        updateSelectedCount();
-        
-        // Add smooth scroll behavior
-        document.documentElement.style.scrollBehavior = 'smooth';
-        
-        // Prevent zoom on iOS
-        document.addEventListener('gesturestart', function(e) {
-            e.preventDefault();
-        });
-        
-        // Add touch feedback to cards
-        document.querySelectorAll('.playlist-card').forEach(card => {
-            card.addEventListener('touchstart', function() {
-                this.style.transform = 'scale(0.98)';
-            });
-            
-            card.addEventListener('touchend', function() {
-                this.style.transform = '';
-            });
-        });
-        
-        // Ensure proper styling is applied
-        document.body.style.backgroundColor = '#121212';
-        document.body.style.color = '#ffffff';
-    });
+function updateSelectedCount() {
+    const checkboxes = document.querySelectorAll('input[type="checkbox"]:checked');
+    const count = checkboxes.length;
+    document.getElementById('selectedCount').textContent = count;
+    
+    const button = document.getElementById('cleanButton');
+    button.disabled = count === 0;
+    
+    // Animate count change
+    const countElement = document.getElementById('selectedCount');
+    countElement.style.transform = 'scale(1.2)';
+    setTimeout(() => {
+        countElement.style.transform = 'scale(1)';
+    }, 200);
+}
 
-    // Auto-refresh after successful cleanup
-    if (window.location.search.includes('message=')) {
-        setTimeout(() => {
-            const url = new URL(window.location);
-            url.searchParams.delete('message');
-            url.searchParams.delete('type');
-            window.history.replaceState({}, '', url);
-        }, 5000);
-    }
+// Add loading state to form submission
+document.getElementById('cleanupForm')?.addEventListener('submit', function(e) {
+    const button = document.getElementById('cleanButton');
+    button.disabled = true;
+    button.innerHTML = '<svg class="animate-spin" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/></svg><span>Bezig...</span>';
+});
 </script>
 ```
 
