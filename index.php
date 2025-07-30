@@ -242,7 +242,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['playlists']) && $isLo
             $errors[] = $playlist['name'];
         }
     }
-    if ($cleanedCount > 0) $message = "$cleanedCount playlist(s) succesvol opgeschoond!";
+    
+    if ($cleanedCount > 0) {
+        $message = "$cleanedCount playlist(s) succesvol opgeschoond!";
+        $messageType = 'success';
+    }
     if (!empty($errors)) {
         $message .= " Fouten bij: " . implode(', ', $errors);
         $messageType = 'warning';
@@ -253,24 +257,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['playlists']) && $isLo
 
 if (isset($_GET['message'])) {
     $message = $_GET['message'];
-    $messageType = $_GET['type'] ?? 'info';
+    $messageType = $_GET['type'] ?? 'success';
 }
+
+$excessCount = count(array_filter($playlists, fn($p) => $p['track_count'] > 50));
+$totalTracks = array_sum(array_map(fn($p) => $p['track_count'], $playlists));
 ?>
 
 <!DOCTYPE html>
+
 <html lang="nl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#1db954">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Playlist Cleaner">
     <title>Spotify Playlist Cleaner</title>
     <link rel="stylesheet" href="styles.css">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%231db954'/><text y='50' x='50' text-anchor='middle' dominant-baseline='middle' font-size='60'>🎵</text></svg>">
 </head>
 <body>
     <header>
         <div class="container">
             <div class="header-content">
-                <div class="logo">Playlist Cleaner</div>
+                <div class="logo">
+                    <span>Playlist Cleaner</span>
+                </div>
                 <?php if ($isLoggedIn && $user): ?>
                     <div class="user-info">
                         <span>Hallo, <?php echo htmlspecialchars($user['display_name']); ?></span>
@@ -281,77 +295,232 @@ if (isset($_GET['message'])) {
         </div>
     </header>
 
-<div class="container">
-<?php if (!$isLoggedIn): ?>
-    <div class="login-container">
-        <div class="login-box">
-            <h1>Spotify Playlist Cleaner</h1>
-            <p>Houd je playlists automatisch op 50 tracks door de oudste nummers te verwijderen en eerlijk te verdelen.</p>
-            <a href="https://accounts.spotify.com/authorize?client_id=<?php echo SPOTIFY_CLIENT_ID; ?>&response_type=code&redirect_uri=<?php echo urlencode(REDIRECT_URI); ?>&scope=<?php echo urlencode(SCOPES); ?>" class="btn">
-                Login met Spotify
-            </a>
-        </div>
-    </div>
-<?php else: ?>
-    <?php if ($message): ?>
-        <div class="message <?php echo $messageType; ?>"><?php echo htmlspecialchars($message); ?></div>
-    <?php endif; ?>
-    <form method="POST">
-        <div class="action-bar">
-            <div>
-                <p><span id="selectedCount">0</span> playlist(s) geselecteerd</p>
-                <p style="font-size: 0.875rem; color: #666;">
-                    Playlists met meer dan 50 tracks: <?php echo count(array_filter($playlists, fn($p) => $p['track_count'] > 50)); ?>
-                </p>
-            </div>
-            <div class="action-buttons" style="display: flex; gap: 10px;">
-                <button type="button" onclick="selectAllExcess()" class="btn btn-secondary">Selecteer alle 50+</button>
-                <button type="submit" class="btn" id="cleanButton" disabled>Schoon op</button>
-            </div>
-        </div>
-        <div class="playlist-grid">
-            <?php foreach ($playlists as $playlist): ?>
-                <div class="playlist-card" onclick="togglePlaylist('<?php echo $playlist['id']; ?>')">
-                    <input type="checkbox" name="playlists[]" value="<?php echo $playlist['id']; ?>" id="playlist-<?php echo $playlist['id']; ?>" class="checkbox" data-tracks-to-remove="<?php echo $playlist['tracks_to_remove']; ?>" onclick="event.stopPropagation()">
-                    <h3><?php echo htmlspecialchars($playlist['name']); ?></h3>
-                    <div class="playlist-stats">
-                        <div><span>Tracks: </span><span class="track-count <?php echo $playlist['track_count'] > 50 ? 'excess' : ''; ?>"><?php echo $playlist['track_count']; ?></span></div>
-                        <?php if ($playlist['tracks_to_remove'] > 0): ?>
-                            <div><span>Te verwijderen: </span><span class="remove-count"><?php echo $playlist['tracks_to_remove']; ?></span></div>
-                        <?php endif; ?>
-                    </div>
-                    <?php if ($playlist['track_count'] <= 50): ?>
-                        <p style="margin-top: 0.5rem; color: #1db954; font-size: 0.875rem;">✓ Op ideale grootte</p>
-                    <?php endif; ?>
+```
+<main>
+    <div class="container">
+        <?php if (!$isLoggedIn): ?>
+            <div class="login-container">
+                <div class="login-box">
+                    <h1>Spotify Playlist Cleaner</h1>
+                    <p>Houd je playlists automatisch op 50 tracks door de oudste nummers te verwijderen en eerlijk te verdelen tussen je playlists.</p>
+                    <a href="https://accounts.spotify.com/authorize?client_id=<?php echo SPOTIFY_CLIENT_ID; ?>&response_type=code&redirect_uri=<?php echo urlencode(REDIRECT_URI); ?>&scope=<?php echo urlencode(SCOPES); ?>" class="btn btn-primary">
+                        Inloggen met Spotify
+                    </a>
                 </div>
-            <?php endforeach; ?>
-        </div>
-    </form>
-<?php endif; ?>
-</div>
+            </div>
+        <?php else: ?>
+            <?php if ($message): ?>
+                <div class="message <?php echo $messageType; ?>">
+                    <?php echo htmlspecialchars($message); ?>
+                </div>
+            <?php endif; ?>
+
+            <?php if (empty($playlists)): ?>
+                <div class="message warning">
+                    <h3>Geen playlists gevonden</h3>
+                    <p>Er zijn geen van jouw playlists gevonden in de configuratie. Controleer of de playlist IDs correct zijn ingesteld.</p>
+                </div>
+            <?php else: ?>
+                <form method="POST" id="cleanupForm">
+                    <div class="action-bar">
+                        <div class="action-bar-content">
+                            <div class="action-info">
+                                <p><span id="selectedCount">0</span> playlist(s) geselecteerd</p>
+                                <p>
+                                    <?php echo $excessCount; ?> playlists hebben meer dan 50 tracks • 
+                                    <?php echo $totalTracks; ?> totale tracks
+                                </p>
+                            </div>
+                            <div class="action-buttons">
+                                <button type="button" onclick="selectAllExcess()" class="btn btn-secondary">
+                                    Selecteer alle 50+
+                                </button>
+                                <button type="submit" class="btn btn-primary" id="cleanButton" disabled>
+                                    <span class="btn-text">Schoon op</span>
+                                    <div class="loading" id="loadingSpinner" style="display: none;"></div>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="playlist-grid">
+                        <?php foreach ($playlists as $index => $playlist): ?>
+                            <div class="playlist-card" onclick="togglePlaylist('<?php echo $playlist['id']; ?>')" style="animation-delay: <?php echo ($index * 0.05); ?>s">
+                                <input 
+                                    type="checkbox" 
+                                    name="playlists[]" 
+                                    value="<?php echo $playlist['id']; ?>" 
+                                    id="playlist-<?php echo $playlist['id']; ?>" 
+                                    class="checkbox" 
+                                    data-tracks-to-remove="<?php echo $playlist['tracks_to_remove']; ?>" 
+                                    onclick="event.stopPropagation()"
+                                    aria-label="Selecteer <?php echo htmlspecialchars($playlist['name']); ?>"
+                                >
+                                
+                                <h3><?php echo htmlspecialchars($playlist['name']); ?></h3>
+                                
+                                <div class="playlist-stats">
+                                    <div>
+                                        <span>Tracks</span>
+                                        <span class="track-count <?php echo $playlist['track_count'] > 50 ? 'excess' : ''; ?>">
+                                            <?php echo $playlist['track_count']; ?>
+                                        </span>
+                                    </div>
+                                    <?php if ($playlist['tracks_to_remove'] > 0): ?>
+                                        <div>
+                                            <span>Te verwijderen</span>
+                                            <span class="remove-count"><?php echo $playlist['tracks_to_remove']; ?></span>
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
+                                
+                                <?php if ($playlist['track_count'] <= 50): ?>
+                                    <p>✓ Op ideale grootte</p>
+                                <?php endif; ?>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                </form>
+            <?php endif; ?>
+        <?php endif; ?>
+    </div>
+</main>
 
 <script>
-function togglePlaylist(playlistId) {
-    const checkbox = document.getElementById('playlist-' + playlistId);
-    const card = checkbox.closest('.playlist-card');
-    checkbox.checked = !checkbox.checked;
-    card.classList.toggle('selected', checkbox.checked);
-    updateSelectedCount();
-}
-function selectAllExcess() {
-    document.querySelectorAll('.playlist-card').forEach(card => {
-        const hasExcess = card.querySelector('.remove-count');
-        const checkbox = card.querySelector('input[type="checkbox"]');
-        checkbox.checked = !!hasExcess;
-        card.classList.toggle('selected', !!hasExcess);
+    let isSubmitting = false;
+
+    function togglePlaylist(playlistId) {
+        if (isSubmitting) return;
+        
+        const checkbox = document.getElementById('playlist-' + playlistId);
+        const card = checkbox.closest('.playlist-card');
+        
+        checkbox.checked = !checkbox.checked;
+        card.classList.toggle('selected', checkbox.checked);
+        
+        // Add haptic feedback on iOS
+        if (window.navigator && window.navigator.vibrate) {
+            window.navigator.vibrate(10);
+        }
+        
+        updateSelectedCount();
+    }
+
+    function selectAllExcess() {
+        if (isSubmitting) return;
+        
+        const cards = document.querySelectorAll('.playlist-card');
+        let selectedAny = false;
+        
+        cards.forEach(card => {
+            const hasExcess = card.querySelector('.remove-count');
+            const checkbox = card.querySelector('input[type="checkbox"]');
+            
+            if (hasExcess) {
+                checkbox.checked = true;
+                card.classList.add('selected');
+                selectedAny = true;
+            }
+        });
+        
+        if (selectedAny && window.navigator && window.navigator.vibrate) {
+            window.navigator.vibrate([10, 50, 10]);
+        }
+        
+        updateSelectedCount();
+    }
+
+    function updateSelectedCount() {
+        const checkboxes = document.querySelectorAll('input[type="checkbox"]:checked');
+        const count = checkboxes.length;
+        
+        document.getElementById('selectedCount').textContent = count;
+        
+        const cleanButton = document.getElementById('cleanButton');
+        cleanButton.disabled = count === 0 || isSubmitting;
+        
+        // Update button text based on selection
+        const btnText = document.querySelector('.btn-text');
+        if (count === 0) {
+            btnText.textContent = 'Schoon op';
+        } else if (count === 1) {
+            btnText.textContent = 'Schoon 1 playlist op';
+        } else {
+            btnText.textContent = `Schoon ${count} playlists op`;
+        }
+    }
+
+    // Form submission with loading state
+    document.getElementById('cleanupForm')?.addEventListener('submit', function(e) {
+        if (isSubmitting) {
+            e.preventDefault();
+            return;
+        }
+        
+        const selectedCount = document.querySelectorAll('input[type="checkbox"]:checked').length;
+        if (selectedCount === 0) {
+            e.preventDefault();
+            return;
+        }
+        
+        isSubmitting = true;
+        
+        // Show loading state
+        const cleanButton = document.getElementById('cleanButton');
+        const btnText = document.querySelector('.btn-text');
+        const loadingSpinner = document.getElementById('loadingSpinner');
+        
+        btnText.style.display = 'none';
+        loadingSpinner.style.display = 'block';
+        cleanButton.disabled = true;
+        
+        // Disable all checkboxes and cards
+        document.querySelectorAll('.playlist-card').forEach(card => {
+            card.style.pointerEvents = 'none';
+            card.style.opacity = '0.6';
+        });
+        
+        // Add visual feedback
+        if (window.navigator && window.navigator.vibrate) {
+            window.navigator.vibrate([100, 50, 100]);
+        }
     });
-    updateSelectedCount();
-}
-function updateSelectedCount() {
-    const checkboxes = document.querySelectorAll('input[type="checkbox"]:checked');
-    document.getElementById('selectedCount').textContent = checkboxes.length;
-    document.getElementById('cleanButton').disabled = checkboxes.length === 0;
-}
+
+    // Initialize page
+    document.addEventListener('DOMContentLoaded', function() {
+        updateSelectedCount();
+        
+        // Add smooth scroll behavior
+        document.documentElement.style.scrollBehavior = 'smooth';
+        
+        // Prevent zoom on iOS
+        document.addEventListener('gesturestart', function(e) {
+            e.preventDefault();
+        });
+        
+        // Add touch feedback to cards
+        document.querySelectorAll('.playlist-card').forEach(card => {
+            card.addEventListener('touchstart', function() {
+                this.style.transform = 'scale(0.98)';
+            });
+            
+            card.addEventListener('touchend', function() {
+                this.style.transform = '';
+            });
+        });
+    });
+
+    // Auto-refresh after successful cleanup
+    if (window.location.search.includes('message=')) {
+        setTimeout(() => {
+            const url = new URL(window.location);
+            url.searchParams.delete('message');
+            url.searchParams.delete('type');
+            window.history.replaceState({}, '', url);
+        }, 5000);
+    }
 </script>
+```
+
 </body>
 </html>
