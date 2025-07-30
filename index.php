@@ -269,21 +269,35 @@ $totalTracks = array_sum(array_map(fn($p) => $p['track_count'], $playlists));
 <html lang="nl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="theme-color" content="#1db954">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Playlist Cleaner">
     <title>Spotify Playlist Cleaner</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=<?php echo time(); ?>">
     <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%231db954'/><text y='50' x='50' text-anchor='middle' dominant-baseline='middle' font-size='60'>🎵</text></svg>">
+    <style>
+        /* Critical CSS for immediate load */
+        body { 
+            background: #121212 !important; 
+            color: #ffffff !important; 
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+        .logo { color: #ffffff !important; }
+        .btn-primary { 
+            background: #1db954 !important; 
+            color: #000000 !important; 
+            text-decoration: none !important;
+        }
+    </style>
 </head>
-<body>
-    <header>
+<body style="background: #121212 !important; color: #ffffff !important; visibility: hidden;">
+    <header style="background: #121212 !important;">
         <div class="container">
             <div class="header-content">
-                <div class="logo">
-                    <span>Playlist Cleaner</span>
+                <div class="logo" style="color: #ffffff !important;">
+                    <span style="color: #ffffff !important;">Playlist Cleaner</span>
                 </div>
                 <?php if ($isLoggedIn && $user): ?>
                     <div class="user-info">
@@ -303,7 +317,9 @@ $totalTracks = array_sum(array_map(fn($p) => $p['track_count'], $playlists));
                 <div class="login-box">
                     <h1>Spotify Playlist Cleaner</h1>
                     <p>Houd je playlists automatisch op 50 tracks door de oudste nummers te verwijderen en eerlijk te verdelen tussen je playlists.</p>
-                    <a href="https://accounts.spotify.com/authorize?client_id=<?php echo SPOTIFY_CLIENT_ID; ?>&response_type=code&redirect_uri=<?php echo urlencode(REDIRECT_URI); ?>&scope=<?php echo urlencode(SCOPES); ?>" class="btn btn-primary">
+                    <a href="https://accounts.spotify.com/authorize?client_id=<?php echo SPOTIFY_CLIENT_ID; ?>&response_type=code&redirect_uri=<?php echo urlencode(REDIRECT_URI); ?>&scope=<?php echo urlencode(SCOPES); ?>" 
+                       class="btn btn-primary" 
+                       style="background: #1db954 !important; color: #000000 !important; text-decoration: none !important;">
                         Inloggen met Spotify
                     </a>
                 </div>
@@ -488,6 +504,9 @@ $totalTracks = array_sum(array_map(fn($p) => $p['track_count'], $playlists));
 
     // Initialize page
     document.addEventListener('DOMContentLoaded', function() {
+        // Hide any loading indicators
+        document.body.style.visibility = 'visible';
+        
         updateSelectedCount();
         
         // Add smooth scroll behavior
@@ -508,6 +527,10 @@ $totalTracks = array_sum(array_map(fn($p) => $p['track_count'], $playlists));
                 this.style.transform = '';
             });
         });
+        
+        // Ensure proper styling is applied
+        document.body.style.backgroundColor = '#121212';
+        document.body.style.color = '#ffffff';
     });
 
     // Auto-refresh after successful cleanup
