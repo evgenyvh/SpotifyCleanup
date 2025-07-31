@@ -56,13 +56,12 @@ function spotifyApiCall($url, $accessToken, $method = 'GET', $data = null) {
 // ==========================
 //   Balancing functie
 // ==========================
-function balancePlaylists($playlists, $accessToken) {
-    $totalTracks = array_sum(array_map(fn($p) => $p['track_count'], $playlists));
-    $playlistCount = count($playlists);
-    $target = min(50, floor($totalTracks / $playlistCount)); // gelijkmatig verdelen
 
-    // Tracks ophalen per playlist
+function balancePlaylists($playlists, $accessToken) {
+    $MAX_TRACKS = 50;
     $playlistTracks = [];
+
+    // 1️⃣ Tracks ophalen en sorteren (oudste eerst)
     foreach ($playlists as $p) {
         $tracks = [];
         $url = "https://api.spotify.com/v1/playlists/{$p['id']}/tracks?fields=items(added_at,track(uri)),next";
@@ -77,59 +76,56 @@ function balancePlaylists($playlists, $accessToken) {
         $playlistTracks[$p['id']] = $tracks;
     }
 
-    // Surplus en tekort bepalen
+    // 2️⃣ Bereken overschot in elke playlist
     $surplus = [];
-    $deficit = [];
     foreach ($playlists as $p) {
-        $count = $p['track_count'];
-        if ($count > $target) {
-            $surplus[$p['id']] = $count - $target;
-        } elseif ($count < $target) {
-            $deficit[$p['id']] = $target - $count;
+        $count = count($playlistTracks[$p['id']]);
+        if ($count > $MAX_TRACKS) {
+            $surplus[$p['id']] = $count - $MAX_TRACKS;
         }
     }
 
-    // Alle bestaande nummers per playlist verzamelen (voor duplicate-check)
-    $existingTracks = [];
-    foreach ($playlistTracks as $pid => $tracks) {
-        $existingTracks[$pid] = array_map(fn($t) => $t['track']['uri'], $tracks);
-    }
-
-    // Verplaatsen zonder duplicaten
+    // 3️⃣ Verspreid overschot naar andere playlists
     foreach ($surplus as $pid => $extra) {
-        $tracksToMove = array_splice($playlistTracks[$pid], 0, $extra);
-        foreach ($deficit as $did => $needed) {
-            if ($needed <= 0) continue;
+        $tracksToMove = array_splice($playlistTracks[$pid], $MAX_TRACKS * -1 - $extra, $extra); 
+        foreach ($playlists as $target) {
+            if ($pid === $target['id']) continue;
+            if ($extra <= 0) break;
 
-            // Alleen tracks toevoegen die nog niet bestaan in doelplaylist
-            $filteredTracks = array_filter($tracksToMove, function($t) use ($existingTracks, $did) {
-                return !in_array($t['track']['uri'], $existingTracks[$did]);
-            });
+            // Maak plek in target als deze vol zit
+            if (count($playlistTracks[$target['id']]) >= $MAX_TRACKS) {
+                $removeCount = (count($playlistTracks[$target['id']]) + $extra) - $MAX_TRACKS;
+                if ($removeCount > 0) {
+                    $tracksToDelete = array_splice($playlistTracks[$target['id']], 0, $removeCount);
+                    $deleteData = ['tracks' => array_map(fn($t) => ['uri' => $t['track']['uri']], $tracksToDelete)];
+                    spotifyApiCall("https://api.spotify.com/v1/playlists/{$target['id']}/tracks", $accessToken, 'DELETE', $deleteData);
+                }
+            }
 
+            // Filter duplicaten
+            $existing = array_map(fn($t) => $t['track']['uri'], $playlistTracks[$target['id']]);
+            $filteredTracks = array_filter($tracksToMove, fn($t) => !in_array($t['track']['uri'], $existing));
             if (empty($filteredTracks)) continue;
 
-            // Voeg URIs toe aan bestaande lijst zodat we later niet dubbel toevoegen
-            foreach ($filteredTracks as $ft) {
-                $existingTracks[$did][] = $ft['track']['uri'];
-            }
+            // Voeg tracks toe
+            $uris = array_map(fn($t) => $t['track']['uri'], $filteredTracks);
+            spotifyApiCall("https://api.spotify.com/v1/playlists/{$target['id']}/tracks", $accessToken, 'POST', [
+                'uris' => $uris
+            ]);
+            $playlistTracks[$target['id']] = array_merge($playlistTracks[$target['id']], $filteredTracks);
+            $extra -= count($filteredTracks);
+        }
+    }
 
-            // Beperk tot aantal dat nodig is
-            $moveBatch = array_slice($filteredTracks, 0, $needed);
-            $uris = array_map(fn($t) => $t['track']['uri'], $moveBatch);
-
-            if (!empty($uris)) {
-                // Toevoegen
-                spotifyApiCall("https://api.spotify.com/v1/playlists/$did/tracks", $accessToken, 'POST', [
-                    'uris' => $uris
-                ]);
-                // Verwijderen
-                $deleteData = ['tracks' => array_map(fn($u) => ['uri' => $u], $uris)];
+    // 4️⃣ Zorg dat elke playlist max 50 nummers heeft (oudste verwijderen)
+    foreach ($playlistTracks as $pid => $tracks) {
+        if (count($tracks) > $MAX_TRACKS) {
+            $tracksToDelete = array_slice($tracks, 0, count($tracks) - $MAX_TRACKS);
+            for ($i = 0; $i < count($tracksToDelete); $i += 100) {
+                $batch = array_slice($tracksToDelete, $i, 100);
+                $deleteData = ['tracks' => array_map(fn($t) => ['uri' => $t['track']['uri']], $batch)];
                 spotifyApiCall("https://api.spotify.com/v1/playlists/$pid/tracks", $accessToken, 'DELETE', $deleteData);
-
-                $deficit[$did] -= count($uris);
-                $extra -= count($uris);
             }
-            if ($extra <= 0) break;
         }
     }
 }
