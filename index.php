@@ -246,6 +246,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['playlists']) && $isLo
     if (!empty($errors)) {
         $message .= " Fouten bij: " . implode(', ', $errors);
         $messageType = 'warning';
+    } else {
+        $messageType = 'success';
     }
     header("Location: /?message=" . urlencode($message) . "&type=$messageType");
     exit;
@@ -263,69 +265,53 @@ if (isset($_GET['message'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#8b5cf6">
-    <title>Playlist Magic ✨ - Spotify Cleanup Tool</title>
+    <meta name="theme-color" content="#1DB954">
+    <title>Playlist Cleaner - Spotify Tool</title>
     <link rel="stylesheet" href="styles.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div class="background-animation">
-        <div class="gradient-sphere sphere-1"></div>
-        <div class="gradient-sphere sphere-2"></div>
-        <div class="gradient-sphere sphere-3"></div>
-    </div>
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <div class="logo-icon">
+                    <svg viewBox="0 0 24 24" fill="none">
+                        <path d="M9 19C9 20.1 8.1 21 7 21S5 20.1 5 19 5.9 17 7 17 9 17.9 9 19ZM12 3V13L19 16V6L12 3Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M5 12L12 15V3L5 6V12Z" fill="currentColor" opacity="0.3"/>
+                    </svg>
+                </div>
+                <span class="brand-text">Playlist Cleaner</span>
+            </div>
+            <?php if ($isLoggedIn && $user): ?>
+                <div class="nav-user">
+                    <div class="user-avatar">
+                        <?php echo strtoupper(substr($user['display_name'] ?? 'U', 0, 1)); ?>
+                    </div>
+                    <span class="user-name"><?php echo htmlspecialchars($user['display_name'] ?? 'User'); ?></span>
+                    <a href="?logout=1" class="logout-btn" aria-label="Uitloggen">
+                        <svg viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clip-rule="evenodd"/>
+                        </svg>
+                    </a>
+                </div>
+            <?php endif; ?>
+        </div>
+    </nav>
 
 ```
-<nav class="navbar">
-    <div class="nav-container">
-        <div class="nav-brand">
-            <div class="logo-icon">
-                <svg viewBox="0 0 24 24" fill="none">
-                    <path d="M9 19C9 20.1 8.1 21 7 21S5 20.1 5 19 5.9 17 7 17 9 17.9 9 19ZM12 3V13L19 16V6L12 3Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    <path d="M5 12L12 15V3L5 6V12Z" fill="currentColor" opacity="0.3"/>
-                </svg>
-            </div>
-            <span class="brand-text">Playlist Magic</span>
-        </div>
-        <?php if ($isLoggedIn && $user): ?>
-            <div class="nav-user">
-                <div class="user-avatar">
-                    <?php echo strtoupper(substr($user['display_name'], 0, 1)); ?>
-                </div>
-                <span class="user-name"><?php echo htmlspecialchars($user['display_name']); ?></span>
-                <a href="?logout=1" class="logout-btn">
-                    <svg viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clip-rule="evenodd"/>
-                    </svg>
-                </a>
-            </div>
-        <?php endif; ?>
-    </div>
-</nav>
-
 <main class="main-content">
     <?php if (!$isLoggedIn): ?>
         <div class="hero-section">
             <div class="hero-card">
                 <div class="hero-icon">
                     <svg viewBox="0 0 48 48" fill="none">
-                        <circle cx="24" cy="24" r="20" stroke="url(#gradient)" stroke-width="3"/>
-                        <path d="M18 30V18L30 24L18 30Z" fill="url(#gradient)"/>
-                        <defs>
-                            <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                <stop offset="0%" style="stop-color:#ec4899"/>
-                                <stop offset="50%" style="stop-color:#8b5cf6"/>
-                                <stop offset="100%" style="stop-color:#3b82f6"/>
-                            </linearGradient>
-                        </defs>
+                        <circle cx="24" cy="24" r="20" stroke="#1DB954" stroke-width="3"/>
+                        <path d="M18 30V18L30 24L18 30Z" fill="#1DB954"/>
                     </svg>
                 </div>
-                <h1 class="hero-title">Playlist Magic ✨</h1>
+                <h1 class="hero-title">Spotify Playlist Cleaner</h1>
                 <p class="hero-subtitle">
-                    Houd je Spotify playlists fris en georganiseerd.<br>
-                    Automatisch op 50 tracks, eerlijk verdeeld.
+                    Houd je Spotify playlists automatisch op 50 tracks.<br>
+                    Verwijdert de oudste nummers en balanceert je collectie.
                 </p>
                 <div class="feature-badges">
                     <div class="badge">
@@ -400,7 +386,7 @@ if (isset($_GET['message'])) {
                         <svg viewBox="0 0 20 20" fill="currentColor">
                             <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/>
                         </svg>
-                        <span>Clean & Balance</span>
+                        <span id="buttonText">Clean & Balance</span>
                     </button>
                 </div>
             </div>
@@ -499,9 +485,14 @@ function updateSelectedCount() {
 // Add loading state to form submission
 document.getElementById('cleanupForm')?.addEventListener('submit', function(e) {
     const button = document.getElementById('cleanButton');
+    const buttonText = document.getElementById('buttonText');
     button.disabled = true;
-    button.innerHTML = '<svg class="animate-spin" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/></svg><span>Bezig...</span>';
+    buttonText.textContent = 'Bezig...';
+    button.querySelector('svg').classList.add('animate-spin');
 });
+
+// Initialize count on page load
+updateSelectedCount();
 </script>
 ```
 
