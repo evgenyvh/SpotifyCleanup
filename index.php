@@ -2,15 +2,16 @@
 session_start();
 
 // ==========================
-//  Spotify Config
+//  Spotify App Configuratie
 // ==========================
 define('SPOTIFY_CLIENT_ID', '01b1208bd01340dfab28bf44f3f1628d');
 define('SPOTIFY_CLIENT_SECRET', '5cd2e26f09954456be09cf7d529e5729');
 define('REDIRECT_URI', 'https://spotifycleanup.onrender.com');
 define('SCOPES', 'playlist-read-private playlist-modify-public playlist-modify-private');
 
+// Specifieke playlists
 $MY_PLAYLISTS = [
-    '4NowFcgobU419IvwzO30UU', 
+    '4NowFcgobU419IvwzO30UU',
     '7lVoiUPCS6ybdyM2N4ft3y',
     '35vAphzyCEvVNjmfFSrZ3w',
     '2b0mMUJSxpCMthgYhlzsu8',
@@ -20,9 +21,9 @@ $MY_PLAYLISTS = [
     '36d0oGY8XUWU0fkZdLL3Sw'
 ];
 
-// ==========================
-//   Helper functie API Call
-// ==========================
+// ===============
+// Helper functies
+// ===============
 function spotifyApiCall($url, $accessToken, $method = 'GET', $data = null) {
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $url);
@@ -31,194 +32,183 @@ function spotifyApiCall($url, $accessToken, $method = 'GET', $data = null) {
         'Authorization: Bearer ' . $accessToken,
         'Content-Type: application/json'
     ]);
-
     if ($method !== 'GET') {
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
-        if ($data) {
-            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-        }
+        if ($data) curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
     }
-
     $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
-
-    if ($httpCode === 401) {
-        unset($_SESSION['access_token']);
-        header('Location: /');
-        exit;
-    }
-
     return json_decode($response, true);
 }
 
-// ==========================
-//   Tracks ophalen
-// ==========================
-function getPlaylistTracks($playlistId, $accessToken) {
+function fetchTracks($playlistId, $token) {
     $tracks = [];
-    $url = "https://api.spotify.com/v1/playlists/$playlistId/tracks?fields=items(added_at,track(id,uri)),next";
+    $url = "https://api.spotify.com/v1/playlists/$playlistId/tracks?fields=items(added_at,track(uri,id,name)),next";
     while ($url) {
-        $data = spotifyApiCall($url, $accessToken);
-        if ($data && isset($data['items'])) {
-            $tracks = array_merge($tracks, $data['items']);
-            $url = $data['next'] ?? null;
-        } else break;
+        $data = spotifyApiCall($url, $token);
+        if (!$data || !isset($data['items'])) break;
+        $tracks = array_merge($tracks, $data['items']);
+        $url = $data['next'] ?? null;
     }
+    usort($tracks, fn($a,$b) => strtotime($a['added_at']) - strtotime($b['added_at']));
     return $tracks;
 }
 
-// ==========================
-//   Verbeterde Balancing
-// ==========================
-function balancePlaylists($playlists, $accessToken) {
-    $MAX_TRACKS = 50;
-    $trackIndex = [];
-    $duplicates = [];
-    $overflowTracks = [];
+// ===============
+// Balancing functie
+// ===============
+function balancePlaylists($playlists, $token) {
+    $report = [
+        'removed_old' => [],
+        'moved' => [],
+        'deleted_duplicates' => [],
+        'deleted_no_space' => []
+    ];
 
-    // 1️⃣ Verzamel alle tracks en duplicates
+    $playlistTracks = [];
+    $existing = [];
+
+    // Alle tracks ophalen
     foreach ($playlists as $p) {
-        $tracks = getPlaylistTracks($p['id'], $accessToken);
-        foreach ($tracks as $t) {
-            $tid = $t['track']['id'];
-            $added = strtotime($t['added_at']);
-            if (isset($trackIndex[$tid])) {
-                $duplicates[] = ['pid' => $p['id'], 'tid' => $tid];
-            } else {
-                $trackIndex[$tid] = ['pid' => $p['id'], 'added' => $added];
+        $tracks = fetchTracks($p['id'], $token);
+        $playlistTracks[$p['id']] = $tracks;
+        $existing[$p['id']] = array_map(fn($t) => $t['track']['uri'], $tracks);
+    }
+
+    // Ruimte maken in alle playlists > 50
+    foreach ($playlistTracks as $pid => $tracks) {
+        $excess = count($tracks) - 50;
+        if ($excess > 0) {
+            $toDelete = array_slice($tracks, 0, $excess);
+            $uris = array_map(fn($t) => ['uri' => $t['track']['uri']], $toDelete);
+            spotifyApiCall("https://api.spotify.com/v1/playlists/$pid/tracks", $token, 'DELETE', ['tracks'=>$uris]);
+            $report['removed_old'][] = "$excess track(s) verwijderd uit {$pid}";
+            $playlistTracks[$pid] = array_slice($tracks, $excess);
+            $existing[$pid] = array_map(fn($t) => $t['track']['uri'], $playlistTracks[$pid]);
+        }
+    }
+
+    // Overschot verzamelen
+    $overshot = [];
+    foreach ($playlistTracks as $pid => $tracks) {
+        if (count($tracks) > 50) {
+            $extra = array_slice($tracks, 50);
+            foreach ($extra as $t) {
+                $overshot[] = ['uri'=>$t['track']['uri'],'from'=>$pid,'name'=>$t['track']['name']];
             }
         }
     }
 
-    // 2️⃣ Verwijder duplicates
-    foreach ($duplicates as $dup) {
-        spotifyApiCall("https://api.spotify.com/v1/playlists/{$dup['pid']}/tracks", $accessToken, 'DELETE', [
-            'tracks' => [['uri' => 'spotify:track:' . $dup['tid']]]
-        ]);
-    }
-
-    // 3️⃣ Verwerk overschot per playlist
-    foreach ($playlists as $p) {
-        $tracks = getPlaylistTracks($p['id'], $accessToken);
-        if (count($tracks) > $MAX_TRACKS) {
-            usort($tracks, fn($a,$b) => strtotime($a['added_at']) - strtotime($b['added_at']));
-            $extra = array_splice($tracks, $MAX_TRACKS);
-            foreach ($extra as $e) {
-                $overflowTracks[] = [
-                    'tid' => $e['track']['id'],
-                    'from' => $p['id']
-                ];
-                spotifyApiCall("https://api.spotify.com/v1/playlists/{$p['id']}/tracks", $accessToken, 'DELETE', [
-                    'tracks' => [['uri' => 'spotify:track:' . $e['track']['id']]]
-                ]);
-            }
-        }
-    }
-
-    // 4️⃣ Verspreid overtollige tracks
-    foreach ($overflowTracks as $t) {
-        $added = false;
-        foreach ($playlists as $p) {
-            $tracks = getPlaylistTracks($p['id'], $accessToken);
-            $trackIds = array_map(fn($tr) => $tr['track']['id'], $tracks);
-            if (count($tracks) < $MAX_TRACKS && !in_array($t['tid'], $trackIds)) {
-                spotifyApiCall("https://api.spotify.com/v1/playlists/{$p['id']}/tracks", $accessToken, 'POST', [
-                    'uris' => ['spotify:track:' . $t['tid']]
-                ]);
-                $added = true;
+    // Round-robin verdeling
+    $targetPlaylists = array_keys($playlistTracks);
+    $idx = 0;
+    foreach ($overshot as $track) {
+        $placed = false;
+        for ($i=0; $i<count($targetPlaylists); $i++) {
+            $did = $targetPlaylists[($idx+$i)%count($targetPlaylists)];
+            if ($did !== $track['from'] && !in_array($track['uri'], $existing[$did]) && count($playlistTracks[$did])<50) {
+                spotifyApiCall("https://api.spotify.com/v1/playlists/$did/tracks", $token, 'POST', ['uris'=>[$track['uri']]]);
+                $playlistTracks[$did][] = ['track'=>['uri'=>$track['uri']]];
+                $existing[$did][] = $track['uri'];
+                $report['moved'][] = "Track '{$track['name']}' verplaatst van {$track['from']} → {$did}";
+                $placed = true;
+                $idx++;
                 break;
             }
         }
-        if (!$added) {
-            // Geen plek in andere playlist → verwijderd
-            spotifyApiCall("https://api.spotify.com/v1/playlists/{$t['from']}/tracks", $accessToken, 'DELETE', [
-                'tracks' => [['uri' => 'spotify:track:' . $t['tid']]]
+        if (!$placed) {
+            $report['deleted_duplicates'][] = "Track '{$track['name']}' kon niet geplaatst worden (duplicaat in alle playlists)";
+            spotifyApiCall("https://api.spotify.com/v1/playlists/{$track['from']}/tracks", $token, 'DELETE', [
+                'tracks'=>[['uri'=>$track['uri']]]
             ]);
         }
     }
 
-    return "✅ Balancing voltooid!";
+    return $report;
 }
 
-// ==========================
-//   OAuth Callback
-// ==========================
+// ===============
+// OAuth & UI
+// ===============
 if (isset($_GET['code'])) {
-    $code = $_GET['code'];
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, 'https://accounts.spotify.com/api/token');
+    $ch = curl_init('https://accounts.spotify.com/api/token');
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_POST, true);
     curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
-        'grant_type' => 'authorization_code',
-        'code' => $code,
-        'redirect_uri' => REDIRECT_URI,
-        'client_id' => SPOTIFY_CLIENT_ID,
-        'client_secret' => SPOTIFY_CLIENT_SECRET
+        'grant_type'=>'authorization_code',
+        'code'=>$_GET['code'],
+        'redirect_uri'=>REDIRECT_URI,
+        'client_id'=>SPOTIFY_CLIENT_ID,
+        'client_secret'=>SPOTIFY_CLIENT_SECRET
     ]));
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Content-Type: application/x-www-form-urlencoded'
-    ]);
     $response = curl_exec($ch);
     curl_close($ch);
     $tokenData = json_decode($response, true);
     if (isset($tokenData['access_token'])) {
-        $_SESSION['access_token'] = $tokenData['access_token'];
-        header('Location: /');
-        exit;
+        $_SESSION['access_token']=$tokenData['access_token'];
+        header('Location: /'); exit;
     }
 }
 
-if (isset($_GET['logout'])) {
-    session_destroy();
-    header('Location: /');
-    exit;
-}
+if (isset($_GET['logout'])) {session_destroy();header('Location: /');exit;}
 
 $isLoggedIn = isset($_SESSION['access_token']);
-$message = '';
+$report=null;
 
 if ($isLoggedIn) {
     $user = spotifyApiCall('https://api.spotify.com/v1/me', $_SESSION['access_token']);
-    $allPlaylists = [];
-
-    foreach ($MY_PLAYLISTS as $pid) {
-        $pl = spotifyApiCall("https://api.spotify.com/v1/playlists/$pid?fields=id,name,tracks(total)", $_SESSION['access_token']);
-        if ($pl && isset($pl['id'])) {
-            $allPlaylists[] = $pl;
-        }
+    $playlists=[];
+    foreach ($MY_PLAYLISTS as $id) {
+        $pl=spotifyApiCall("https://api.spotify.com/v1/playlists/$id?fields=id,name,owner,tracks(total)",$_SESSION['access_token']);
+        if($pl&&isset($pl['id']))$playlists[]=$pl;
     }
-
-    $message = balancePlaylists($allPlaylists, $_SESSION['access_token']);
+    if ($_SERVER['REQUEST_METHOD']==='POST') {
+        $report=balancePlaylists($playlists,$_SESSION['access_token']);
+    }
 }
 ?>
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Playlist Auto-Balancer</title>
-    <style>
-        body { font-family: Arial, sans-serif; background: #121212; color: white; text-align: center; margin: 0; padding: 0; }
-        .container { padding: 40px; }
-        .btn { background: #1DB954; color: white; padding: 12px 24px; border: none; border-radius: 25px; cursor: pointer; font-size: 18px; text-decoration: none; display: inline-block; }
-        .btn:hover { background: #1ed760; }
-        .message { margin-top: 30px; padding: 15px; background: #282828; border-radius: 5px; display: inline-block; }
-        h1 { font-size: 28px; margin-bottom: 20px; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Playlist Cleaner - Auto Balance</title>
+<style>
+body{font-family:Arial,sans-serif;background:#121212;color:#fff;margin:0;padding:0}
+.container{max-width:900px;margin:40px auto;padding:20px;background:#181818;border-radius:8px}
+h1{text-align:center;color:#1DB954}
+button{background:#1DB954;border:none;padding:12px 20px;color:#fff;font-size:16px;cursor:pointer;border-radius:5px}
+.report{margin-top:20px;background:#222;padding:15px;border-radius:5px}
+.report h2{color:#1DB954}
+ul{list-style:none;padding:0}
+li{padding:5px 0;border-bottom:1px solid #333}
+.download-btn{margin-top:10px;display:inline-block;padding:8px 14px;background:#333;color:#fff;text-decoration:none;border-radius:4px}
+</style>
 </head>
 <body>
-    <div class="container">
-        <?php if (!$isLoggedIn): ?>
-            <h1>Spotify Playlist Auto-Balancer</h1>
-            <p>Automatisch opruimen en balanceren van je ingestuurde nummers.<br> Altijd maximaal 50 tracks per playlist, nieuwste nummers eerst.</p>
-            <a class="btn" href="https://accounts.spotify.com/authorize?client_id=<?php echo SPOTIFY_CLIENT_ID; ?>&response_type=code&redirect_uri=<?php echo urlencode(REDIRECT_URI); ?>&scope=<?php echo urlencode(SCOPES); ?>">🔗 Verbinden met Spotify</a>
-        <?php else: ?>
-            <h1>✅ Balancing voltooid!</h1>
-            <div class="message"><?php echo $message; ?></div><br><br>
-            <a href="?logout=1" class="btn">Log uit</a>
-        <?php endif; ?>
-    </div>
+<div class="container">
+<h1>🎵 Playlist Cleaner - Auto Balance</h1>
+<?php if(!$isLoggedIn): ?>
+<p style="text-align:center">Verbind met Spotify om automatisch te balanceren.</p>
+<div style="text-align:center">
+<a href="https://accounts.spotify.com/authorize?client_id=<?php echo SPOTIFY_CLIENT_ID;?>&response_type=code&redirect_uri=<?php echo urlencode(REDIRECT_URI); ?>&scope=<?php echo urlencode(SCOPES); ?>">
+<button>🔗 Verbinden met Spotify</button></a>
+</div>
+<?php else: ?>
+<form method="POST">
+<div style="text-align:center;margin-bottom:20px">
+<button type="submit">🚀 Start Auto Balance Run</button>
+</div>
+</form>
+<?php if($report): ?>
+<div class="report">
+<h2>📄 Run Rapport</h2>
+<h3>🗑 Oude nummers verwijderd</h3><ul><?php foreach($report['removed_old'] as $r)echo"<li>$r</li>";?></ul>
+<h3>🔀 Verplaatst</h3><ul><?php foreach($report['moved'] as $r)echo"<li>$r</li>";?></ul>
+<h3>❌ Dubbele tracks verwijderd</h3><ul><?php foreach($report['deleted_duplicates'] as $r)echo"<li>$r</li>";?></ul>
+</div>
+<?php endif; ?>
+<?php endif; ?>
+</div>
 </body>
 </html>
