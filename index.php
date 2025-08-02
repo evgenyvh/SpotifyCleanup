@@ -10,7 +10,7 @@ define('REDIRECT_URI', 'https://spotifycleanup.onrender.com');
 define('SCOPES', 'playlist-read-private playlist-modify-public playlist-modify-private');
 define('TARGET_TRACKS', 50);
 
-// Alle playlists die meedoen in de verdeling
+// Alle playlists die meedoen
 $MY_PLAYLISTS = [
     '4NowFcgobU419IvwzO30UU', // New Talents
     '7lVoiUPCS6ybdyM2N4ft3y', // Next Best
@@ -72,155 +72,79 @@ function getAllPlaylistTracks($playlistId, $accessToken) {
     return $tracks;
 }
 
-function distributeTracksEvenly($allPlaylists, $accessToken) {
-    $report = [];
-    $log = [];
-    $allTracks = [];
-    $playlistContents = [];
+function reorderPlaylistAsEscalator($playlist, $accessToken) {
+    $playlistId = $playlist['id'];
+    $playlistName = $playlist['name'];
+    $tracks = getAllPlaylistTracks($playlistId, $accessToken);
+    $originalCount = count($tracks);
     
-    // Stap 1: Haal alle tracks op van alle playlists
-    foreach ($allPlaylists as $playlist) {
-        $tracks = getAllPlaylistTracks($playlist['id'], $accessToken);
-        $playlistContents[$playlist['id']] = [
-            'info' => $playlist,
-            'tracks' => $tracks,
-            'uris' => array_map(fn($t) => $t['track']['uri'], $tracks)
-        ];
-        
-        $report[$playlist['id']] = [
-            'name' => $playlist['name'],
-            'before' => count($tracks),
-            'after' => count($tracks),
-            'added' => 0,
-            'removed' => 0
+    // Als playlist leeg is of minder dan 2 tracks heeft, skip
+    if ($originalCount < 2) {
+        return [
+            'name' => $playlistName,
+            'status' => 'skipped',
+            'message' => 'Te weinig tracks om te herordenen',
+            'track_count' => $originalCount
         ];
     }
     
-    // Stap 2: Verzamel alle overtollige tracks
-    $excessTracks = [];
-    foreach ($playlistContents as $pid => $content) {
-        $trackCount = count($content['tracks']);
-        if ($trackCount > TARGET_TRACKS) {
-            // Sorteer op datum (oudste eerst)
-            usort($content['tracks'], fn($a, $b) => strtotime($a['added_at']) - strtotime($b['added_at']));
-            
-            // Pak de oudste tracks die weg moeten
-            $toRemove = array_slice($content['tracks'], 0, $trackCount - TARGET_TRACKS);
-            foreach ($toRemove as $track) {
-                $excessTracks[] = [
-                    'track' => $track,
-                    'from_playlist' => $pid,
-                    'from_name' => $content['info']['name']
-                ];
-            }
-        }
-    }
+    // Sorteer tracks op added_at datum (nieuwste eerst)
+    usort($tracks, fn($a, $b) => strtotime($b['added_at']) - strtotime($a['added_at']));
     
-    // Stap 3: Verdeel excess tracks eerlijk (round-robin)
-    $playlistIds = array_keys($playlistContents);
-    $currentIndex = 0;
-    $redistributed = [];
-    $toDelete = [];
+    // Als er meer dan TARGET_TRACKS zijn, behoud alleen de nieuwste
+    $tracksToKeep = array_slice($tracks, 0, TARGET_TRACKS);
+    $tracksToRemove = array_slice($tracks, TARGET_TRACKS);
     
-    foreach ($excessTracks as $excess) {
-        $placed = false;
-        $attempts = 0;
-        $trackUri = $excess['track']['track']['uri'];
-        $trackName = $excess['track']['track']['name'];
-        $artistName = $excess['track']['track']['artists'][0]['name'] ?? 'Unknown';
-        
-        // Probeer de track te plaatsen in een andere playlist
-        while (!$placed && $attempts < count($playlistIds)) {
-            $targetId = $playlistIds[$currentIndex % count($playlistIds)];
-            $currentIndex++;
-            $attempts++;
-            
-            // Skip de originele playlist
-            if ($targetId === $excess['from_playlist']) {
-                continue;
-            }
-            
-            $targetContent = $playlistContents[$targetId];
-            $wouldHaveAfterRemoval = count($targetContent['tracks']) - 
-                count(array_filter($redistributed, fn($r) => $r['from'] === $targetId));
-            $wouldHaveAfterAddition = $wouldHaveAfterRemoval + 
-                count(array_filter($redistributed, fn($r) => $r['to'] === $targetId));
-            
-            // Check of de playlist ruimte heeft en de track nog niet bevat
-            if ($wouldHaveAfterAddition < TARGET_TRACKS && !in_array($trackUri, $targetContent['uris'])) {
-                // Plan de herverdeling
-                $redistributed[] = [
-                    'track' => $excess['track'],
-                    'from' => $excess['from_playlist'],
-                    'to' => $targetId,
-                    'uri' => $trackUri
-                ];
-                
-                // Update de lokale kopie
-                $playlistContents[$targetId]['uris'][] = $trackUri;
-                
-                $log[] = [
-                    'action' => 'redistribute',
-                    'track' => "$trackName - $artistName",
-                    'from' => $excess['from_name'],
-                    'to' => $targetContent['info']['name']
-                ];
-                
-                $placed = true;
-            }
-        }
-        
-        // Als niet geplaatst kan worden, markeer voor verwijdering
-        if (!$placed) {
-            $toDelete[] = $excess;
-            $log[] = [
-                'action' => 'delete',
-                'track' => "$trackName - $artistName",
-                'from' => $excess['from_name'],
-                'reason' => 'Geen ruimte in andere playlists'
-            ];
-        }
-    }
+    // Keer de volgorde om zodat oudste bovenaan staat
+    $tracksToKeep = array_reverse($tracksToKeep);
     
-    // Stap 4: Voer de wijzigingen uit
-    // Eerst toevoegingen
-    foreach ($redistributed as $item) {
+    // Verzamel track URIs
+    $urisToKeep = array_map(fn($t) => $t['track']['uri'], $tracksToKeep);
+    
+    // Stap 1: Verwijder ALLE tracks uit de playlist
+    $allUris = array_map(fn($t) => ['uri' => $t['track']['uri']], $tracks);
+    if (!empty($allUris)) {
         spotifyApiCall(
-            "https://api.spotify.com/v1/playlists/{$item['to']}/tracks",
+            "https://api.spotify.com/v1/playlists/$playlistId/tracks",
             $accessToken,
-            'POST',
-            ['uris' => [$item['uri']]]
+            'DELETE',
+            ['tracks' => $allUris]
         );
-        
-        $report[$item['to']]['added']++;
-        $report[$item['to']]['after']++;
     }
     
-    // Dan verwijderingen per playlist
-    foreach ($playlistContents as $pid => $content) {
-        $tracksToRemove = [];
-        
-        // Verzamel tracks die uit deze playlist verwijderd moeten worden
-        foreach (array_merge($redistributed, $toDelete) as $item) {
-            if (($item['from'] ?? $item['from_playlist']) === $pid) {
-                $tracksToRemove[] = ['uri' => $item['track']['track']['uri'] ?? $item['uri']];
-            }
-        }
-        
-        if (!empty($tracksToRemove)) {
+    // Stap 2: Voeg tracks terug toe in de juiste volgorde (oudste eerst)
+    if (!empty($urisToKeep)) {
+        // Spotify API limiet is 100 tracks per keer
+        $chunks = array_chunk($urisToKeep, 100);
+        foreach ($chunks as $chunk) {
             spotifyApiCall(
-                "https://api.spotify.com/v1/playlists/$pid/tracks",
+                "https://api.spotify.com/v1/playlists/$playlistId/tracks",
                 $accessToken,
-                'DELETE',
-                ['tracks' => $tracksToRemove]
+                'POST',
+                ['uris' => $chunk]
             );
-            
-            $report[$pid]['removed'] = count($tracksToRemove);
-            $report[$pid]['after'] -= count($tracksToRemove);
         }
     }
     
-    return ['report' => $report, 'log' => $log];
+    $result = [
+        'name' => $playlistName,
+        'status' => 'success',
+        'original_count' => $originalCount,
+        'new_count' => count($tracksToKeep),
+        'removed_count' => count($tracksToRemove),
+        'removed_tracks' => []
+    ];
+    
+    // Voeg info toe over verwijderde tracks
+    foreach ($tracksToRemove as $track) {
+        $result['removed_tracks'][] = [
+            'name' => $track['track']['name'],
+            'artist' => $track['track']['artists'][0]['name'] ?? 'Unknown',
+            'added_at' => $track['added_at']
+        ];
+    }
+    
+    return $result;
 }
 
 // OAuth Flow
@@ -258,7 +182,7 @@ if (isset($_GET['logout'])) {
 $isLoggedIn = isset($_SESSION['access_token']);
 $user = null;
 $playlists = [];
-$result = null;
+$results = null;
 
 if ($isLoggedIn) {
     $user = spotifyApiCall('https://api.spotify.com/v1/me', $_SESSION['access_token']);
@@ -278,8 +202,11 @@ if ($isLoggedIn) {
         }
         
         // Process form submission
-        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['distribute'])) {
-            $result = distributeTracksEvenly($playlists, $_SESSION['access_token']);
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reorder'])) {
+            $results = [];
+            foreach ($playlists as $playlist) {
+                $results[] = reorderPlaylistAsEscalator($playlist, $_SESSION['access_token']);
+            }
         }
     }
 }
@@ -291,7 +218,7 @@ if ($isLoggedIn) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Spotify Playlist Distributor</title>
+    <title>Spotify Playlist Escalator - Curator Tool</title>
     <style>
         * {
             margin: 0;
@@ -302,7 +229,7 @@ if ($isLoggedIn) {
 ```
     body {
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
-        background: #121212;
+        background: #0a0a0a;
         color: #fff;
         line-height: 1.6;
         min-height: 100vh;
@@ -315,10 +242,11 @@ if ($isLoggedIn) {
     }
     
     .header {
-        background: #282828;
+        background: rgba(18, 18, 18, 0.8);
+        backdrop-filter: blur(10px);
         padding: 20px 0;
         margin: -20px -20px 30px;
-        border-bottom: 1px solid #333;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     }
     
     .header-content {
@@ -339,17 +267,21 @@ if ($isLoggedIn) {
     .logo-icon {
         width: 40px;
         height: 40px;
-        background: #1DB954;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         border-radius: 50%;
         display: flex;
         align-items: center;
         justify-content: center;
         font-size: 20px;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
     }
     
     h1 {
         font-size: 24px;
         font-weight: 600;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
     }
     
     .user-info {
@@ -364,7 +296,7 @@ if ($isLoggedIn) {
     }
     
     .btn {
-        background: #1DB954;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: #fff;
         border: none;
         padding: 12px 24px;
@@ -375,15 +307,16 @@ if ($isLoggedIn) {
         transition: all 0.3s ease;
         text-decoration: none;
         display: inline-block;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
     }
     
     .btn:hover {
-        background: #1ed760;
-        transform: scale(1.05);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
     }
     
     .btn:active {
-        transform: scale(0.98);
+        transform: translateY(0);
     }
     
     .btn-logout {
@@ -391,11 +324,13 @@ if ($isLoggedIn) {
         border: 1px solid #535353;
         padding: 8px 16px;
         font-size: 14px;
+        box-shadow: none;
     }
     
     .btn-logout:hover {
         border-color: #fff;
         background: transparent;
+        box-shadow: none;
     }
     
     .hero {
@@ -406,7 +341,7 @@ if ($isLoggedIn) {
     .hero h2 {
         font-size: 48px;
         margin-bottom: 20px;
-        background: linear-gradient(135deg, #1DB954 0%, #1ed760 100%);
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
     }
@@ -417,6 +352,53 @@ if ($isLoggedIn) {
         margin-bottom: 40px;
     }
     
+    .info-section {
+        background: rgba(18, 18, 18, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        padding: 30px;
+        margin: 40px 0;
+    }
+    
+    .info-title {
+        font-size: 20px;
+        margin-bottom: 20px;
+        color: #fff;
+    }
+    
+    .escalator-visual {
+        background: rgba(102, 126, 234, 0.1);
+        border: 1px solid rgba(102, 126, 234, 0.3);
+        border-radius: 8px;
+        padding: 20px;
+        margin: 20px 0;
+    }
+    
+    .escalator-step {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        margin: 10px 0;
+        padding: 10px;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 4px;
+        transition: all 0.3s ease;
+    }
+    
+    .escalator-step:hover {
+        background: rgba(255, 255, 255, 0.1);
+    }
+    
+    .step-position {
+        font-weight: 700;
+        color: #667eea;
+        min-width: 30px;
+    }
+    
+    .step-arrow {
+        color: #764ba2;
+    }
+    
     .stats-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -425,21 +407,25 @@ if ($isLoggedIn) {
     }
     
     .stat-card {
-        background: #282828;
-        padding: 20px;
-        border-radius: 8px;
+        background: rgba(18, 18, 18, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 25px;
+        border-radius: 12px;
         text-align: center;
-        transition: transform 0.2s ease;
+        transition: all 0.3s ease;
     }
     
     .stat-card:hover {
         transform: translateY(-2px);
+        border-color: rgba(102, 126, 234, 0.5);
     }
     
     .stat-number {
         font-size: 36px;
         font-weight: 700;
-        color: #1DB954;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
         display: block;
         margin-bottom: 5px;
     }
@@ -449,35 +435,26 @@ if ($isLoggedIn) {
         font-size: 14px;
     }
     
-    .playlists-section {
+    .playlists-grid {
+        display: grid;
+        gap: 15px;
         margin: 40px 0;
     }
     
-    .playlists-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 20px;
-    }
-    
-    .playlists-grid {
-        display: grid;
-        gap: 12px;
-    }
-    
     .playlist-card {
-        background: #181818;
-        padding: 16px 20px;
-        border-radius: 8px;
+        background: rgba(18, 18, 18, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 20px;
+        border-radius: 12px;
         display: flex;
         justify-content: space-between;
         align-items: center;
-        transition: all 0.2s ease;
-        border: 2px solid transparent;
+        transition: all 0.3s ease;
     }
     
     .playlist-card:hover {
-        background: #282828;
+        border-color: rgba(102, 126, 234, 0.5);
+        transform: translateY(-2px);
     }
     
     .playlist-info {
@@ -489,8 +466,8 @@ if ($isLoggedIn) {
     .playlist-icon {
         width: 48px;
         height: 48px;
-        background: #282828;
-        border-radius: 4px;
+        background: rgba(102, 126, 234, 0.2);
+        border-radius: 8px;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -510,26 +487,19 @@ if ($isLoggedIn) {
     
     .track-count {
         font-weight: 600;
-        padding: 4px 12px;
+        padding: 6px 16px;
         border-radius: 100px;
         font-size: 14px;
-    }
-    
-    .optimal {
-        background: rgba(29, 185, 84, 0.2);
-        color: #1DB954;
-    }
-    
-    .excess {
-        background: rgba(248, 113, 113, 0.2);
-        color: #f87171;
+        background: rgba(102, 126, 234, 0.2);
+        color: #667eea;
     }
     
     .action-section {
         text-align: center;
         margin: 60px 0;
         padding: 40px;
-        background: #181818;
+        background: rgba(18, 18, 18, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.1);
         border-radius: 12px;
     }
     
@@ -544,121 +514,95 @@ if ($isLoggedIn) {
         font-size: 16px;
     }
     
-    .warning {
-        background: rgba(248, 113, 113, 0.1);
-        border: 1px solid rgba(248, 113, 113, 0.3);
-        color: #f87171;
-        padding: 12px 20px;
-        border-radius: 8px;
-        margin: 20px 0;
-        font-size: 14px;
-    }
-    
     .result-section {
         margin: 40px 0;
-        padding: 30px;
-        background: #181818;
+    }
+    
+    .result-card {
+        background: rgba(18, 18, 18, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.1);
         border-radius: 12px;
+        padding: 25px;
+        margin-bottom: 20px;
     }
     
     .result-header {
-        text-align: center;
-        margin-bottom: 30px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+    }
+    
+    .result-title {
+        font-size: 18px;
+        font-weight: 600;
+    }
+    
+    .result-status {
+        padding: 6px 16px;
+        border-radius: 100px;
+        font-size: 14px;
+        font-weight: 600;
+    }
+    
+    .status-success {
+        background: rgba(29, 185, 84, 0.2);
+        color: #1DB954;
+    }
+    
+    .status-skipped {
+        background: rgba(255, 193, 7, 0.2);
+        color: #ffc107;
     }
     
     .result-stats {
         display: flex;
-        justify-content: center;
-        gap: 40px;
-        margin-bottom: 40px;
-        flex-wrap: wrap;
+        gap: 30px;
+        margin-top: 15px;
     }
     
     .result-stat {
-        text-align: center;
-    }
-    
-    .result-stat-number {
-        font-size: 48px;
-        font-weight: 700;
-        display: block;
-    }
-    
-    .result-stat-label {
-        color: #b3b3b3;
-        font-size: 14px;
-    }
-    
-    .result-table {
-        width: 100%;
-        background: #282828;
-        border-radius: 8px;
-        overflow: hidden;
-        margin-bottom: 30px;
-    }
-    
-    .result-table th {
-        background: #333;
-        padding: 12px 16px;
-        text-align: left;
-        font-weight: 600;
         font-size: 14px;
         color: #b3b3b3;
     }
     
-    .result-table td {
-        padding: 12px 16px;
-        border-top: 1px solid #333;
+    .result-stat strong {
+        color: #fff;
     }
     
-    .result-table tr:hover {
-        background: #333;
-    }
-    
-    .log-section {
-        margin-top: 30px;
-    }
-    
-    .log-header {
-        margin-bottom: 20px;
-    }
-    
-    .log-entries {
-        background: #282828;
+    .removed-tracks {
+        margin-top: 20px;
+        background: rgba(255, 255, 255, 0.05);
         border-radius: 8px;
-        padding: 20px;
-        max-height: 400px;
-        overflow-y: auto;
+        padding: 15px;
     }
     
-    .log-entry {
-        padding: 10px 0;
-        border-bottom: 1px solid #333;
+    .removed-tracks h4 {
         font-size: 14px;
+        color: #b3b3b3;
+        margin-bottom: 10px;
+    }
+    
+    .removed-track {
         display: flex;
-        align-items: start;
-        gap: 10px;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        font-size: 14px;
     }
     
-    .log-entry:last-child {
+    .removed-track:last-child {
         border-bottom: none;
     }
     
-    .log-icon {
-        flex-shrink: 0;
-        width: 20px;
-        height: 20px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+    .track-info {
+        flex: 1;
     }
     
-    .log-redistribute {
-        color: #1DB954;
-    }
-    
-    .log-delete {
-        color: #f87171;
+    .track-date {
+        color: #666;
+        font-size: 12px;
     }
     
     .loading {
@@ -674,8 +618,8 @@ if ($isLoggedIn) {
     .spinner {
         width: 40px;
         height: 40px;
-        border: 4px solid #333;
-        border-top-color: #1DB954;
+        border: 3px solid rgba(102, 126, 234, 0.3);
+        border-top-color: #667eea;
         border-radius: 50%;
         margin: 0 auto 20px;
         animation: spin 1s linear infinite;
@@ -701,7 +645,7 @@ if ($isLoggedIn) {
         
         .result-stats {
             flex-direction: column;
-            gap: 20px;
+            gap: 10px;
         }
     }
 </style>
@@ -712,39 +656,66 @@ if ($isLoggedIn) {
     <?php if (!$isLoggedIn): ?>
     <div class="container">
         <div class="hero">
-            <h2>Spotify Playlist Distributor</h2>
-            <p>Verdeel tracks intelligent over al je playlists</p>
-            <a href="https://accounts.spotify.com/authorize?client_id=<?php echo SPOTIFY_CLIENT_ID; ?>&response_type=code&redirect_uri=<?php echo urlencode(REDIRECT_URI); ?>&scope=<?php echo urlencode(SCOPES); ?>" class="btn">
-                🎵 Verbind met Spotify
-            </a>
-        </div>
-    </div>
-    <?php else: ?>
-    <div class="header">
-        <div class="header-content">
-            <div class="logo">
-                <div class="logo-icon">🎵</div>
-                <h1>Playlist Distributor</h1>
-            </div>
-            <div class="user-info">
-                <span class="user-name">👤 <?php echo htmlspecialchars($user['display_name'] ?? 'Gebruiker'); ?></span>
-                <a href="?logout=1" class="btn btn-logout">Uitloggen</a>
-            </div>
-        </div>
-    </div>
+            <h2>Spotify Playlist Escalator</h2>
+            <p>De perfecte tool voor playlist curators</p>
 
 ```
+        <div class="info-section">
+            <h3 class="info-title">🎵 Hoe het werkt:</h3>
+            <div class="escalator-visual">
+                <div class="escalator-step">
+                    <span class="step-position">#50</span>
+                    <span class="step-arrow">→</span>
+                    <span>Nieuwe submission komt binnen (onderaan)</span>
+                </div>
+                <div class="escalator-step">
+                    <span class="step-position">#25</span>
+                    <span class="step-arrow">→</span>
+                    <span>Track klimt elke dag een positie</span>
+                </div>
+                <div class="escalator-step">
+                    <span class="step-position">#1</span>
+                    <span class="step-arrow">→</span>
+                    <span>Top positie! Maximale exposure</span>
+                </div>
+                <div class="escalator-step">
+                    <span class="step-position">✅</span>
+                    <span class="step-arrow">→</span>
+                    <span>Na 50 dagen wordt track verwijderd</span>
+                </div>
+            </div>
+            <p style="text-align: center; color: #b3b3b3; margin-top: 20px;">
+                Elke artiest krijgt exact 50 dagen exposure, van onderaan naar bovenaan!
+            </p>
+        </div>
+        
+        <a href="https://accounts.spotify.com/authorize?client_id=<?php echo SPOTIFY_CLIENT_ID; ?>&response_type=code&redirect_uri=<?php echo urlencode(REDIRECT_URI); ?>&scope=<?php echo urlencode(SCOPES); ?>" class="btn">
+            🚀 Verbind met Spotify
+        </a>
+    </div>
+</div>
+<?php else: ?>
+<div class="header">
+    <div class="header-content">
+        <div class="logo">
+            <div class="logo-icon">↗️</div>
+            <h1>Playlist Escalator</h1>
+        </div>
+        <div class="user-info">
+            <span class="user-name">👤 <?php echo htmlspecialchars($user['display_name'] ?? 'Gebruiker'); ?></span>
+            <a href="?logout=1" class="btn btn-logout">Uitloggen</a>
+        </div>
+    </div>
+</div>
+
 <div class="container">
     <?php 
     $totalTracks = array_sum(array_column($playlists, 'track_count'));
-    $excessTracks = 0;
-    $optimalPlaylists = 0;
+    $totalToRemove = 0;
     
     foreach ($playlists as $playlist) {
         if ($playlist['track_count'] > TARGET_TRACKS) {
-            $excessTracks += $playlist['track_count'] - TARGET_TRACKS;
-        } else {
-            $optimalPlaylists++;
+            $totalToRemove += $playlist['track_count'] - TARGET_TRACKS;
         }
     }
     ?>
@@ -752,156 +723,119 @@ if ($isLoggedIn) {
     <div class="stats-grid">
         <div class="stat-card">
             <span class="stat-number"><?php echo count($playlists); ?></span>
-            <span class="stat-label">Totaal Playlists</span>
+            <span class="stat-label">Curator Playlists</span>
         </div>
         <div class="stat-card">
             <span class="stat-number"><?php echo $totalTracks; ?></span>
-            <span class="stat-label">Totaal Tracks</span>
+            <span class="stat-label">Totaal Submissions</span>
         </div>
         <div class="stat-card">
-            <span class="stat-number"><?php echo $excessTracks; ?></span>
-            <span class="stat-label">Te Verdelen Tracks</span>
+            <span class="stat-number"><?php echo $totalToRemove; ?></span>
+            <span class="stat-label">Tracks te Verwijderen</span>
         </div>
     </div>
     
-    <div class="playlists-section">
-        <div class="playlists-header">
-            <h2>Playlist Overzicht</h2>
-            <span style="color: #b3b3b3; font-size: 14px;">Target: <?php echo TARGET_TRACKS; ?> tracks per playlist</span>
-        </div>
-        
-        <div class="playlists-grid">
-            <?php foreach ($playlists as $index => $playlist): ?>
-            <div class="playlist-card">
-                <div class="playlist-info">
-                    <div class="playlist-icon">
-                        <?php echo ['🎵', '🎸', '🎹', '🎤', '🎧', '🎼', '🎺', '🥁'][$index % 8]; ?>
-                    </div>
-                    <div class="playlist-details">
-                        <h3><?php echo htmlspecialchars($playlist['name']); ?></h3>
-                        <div class="playlist-meta">
-                            <?php if ($playlist['track_count'] > TARGET_TRACKS): ?>
-                            <span style="color: #f87171;">
-                                <?php echo $playlist['track_count'] - TARGET_TRACKS; ?> tracks te veel
-                            </span>
-                            <?php else: ?>
-                            <span style="color: #1DB954;">
-                                <?php echo TARGET_TRACKS - $playlist['track_count']; ?> plekken vrij
-                            </span>
-                            <?php endif; ?>
-                        </div>
+    <div class="playlists-grid">
+        <?php foreach ($playlists as $index => $playlist): ?>
+        <div class="playlist-card">
+            <div class="playlist-info">
+                <div class="playlist-icon">
+                    <?php echo ['🎵', '🎸', '🎹', '🎤', '🎧', '🎼', '🎺', '🥁'][$index % 8]; ?>
+                </div>
+                <div class="playlist-details">
+                    <h3><?php echo htmlspecialchars($playlist['name']); ?></h3>
+                    <div class="playlist-meta">
+                        <?php if ($playlist['track_count'] > TARGET_TRACKS): ?>
+                        <span style="color: #f87171;">
+                            <?php echo $playlist['track_count'] - TARGET_TRACKS; ?> tracks op positie 1 klaar voor verwijdering
+                        </span>
+                        <?php elseif ($playlist['track_count'] == TARGET_TRACKS): ?>
+                        <span style="color: #1DB954;">
+                            Perfect! Playlist is vol
+                        </span>
+                        <?php else: ?>
+                        <span style="color: #ffc107;">
+                            <?php echo TARGET_TRACKS - $playlist['track_count']; ?> plekken beschikbaar
+                        </span>
+                        <?php endif; ?>
                     </div>
                 </div>
-                <span class="track-count <?php echo $playlist['track_count'] > TARGET_TRACKS ? 'excess' : 'optimal'; ?>">
-                    <?php echo $playlist['track_count']; ?> tracks
-                </span>
             </div>
-            <?php endforeach; ?>
+            <span class="track-count">
+                <?php echo $playlist['track_count']; ?> tracks
+            </span>
         </div>
+        <?php endforeach; ?>
     </div>
     
-    <?php if ($excessTracks > 0): ?>
-    <form method="POST" id="distributeForm">
+    <form method="POST" id="reorderForm">
         <div class="action-section">
-            <h2>Klaar om te verdelen?</h2>
+            <h2>🎯 Start Dagelijkse Rotatie</h2>
             <p>
-                Er zijn <strong><?php echo $excessTracks; ?> tracks</strong> die intelligent verdeeld kunnen worden over je playlists.
-                De oudste tracks worden eerst verplaatst naar playlists met ruimte.
+                Deze actie zal alle playlists herordenen volgens het escalator principe:<br>
+                <strong>Oudste tracks bovenaan → Nieuwste tracks onderaan</strong>
             </p>
-            <div class="warning">
-                ⚠️ Let op: Deze actie kan niet ongedaan gemaakt worden. Tracks worden verplaatst of verwijderd.
-            </div>
-            <button type="submit" name="distribute" value="1" class="btn" onclick="showLoading()">
-                🚀 Start Verdeling
+            <?php if ($totalToRemove > 0): ?>
+            <p style="color: #f87171; margin-top: 20px;">
+                ⚠️ Er zullen <strong><?php echo $totalToRemove; ?> tracks</strong> verwijderd worden (die al 50 dagen exposure hebben gehad)
+            </p>
+            <?php endif; ?>
+            <button type="submit" name="reorder" value="1" class="btn" onclick="showLoading()">
+                ↗️ Start Escalator Rotatie
             </button>
         </div>
     </form>
     
     <div class="loading" id="loading">
         <div class="spinner"></div>
-        <p>Tracks worden verdeeld over je playlists...</p>
-        <p style="color: #b3b3b3; font-size: 14px;">Dit kan even duren bij veel tracks</p>
+        <p>Playlists worden geherordend...</p>
+        <p style="color: #b3b3b3; font-size: 14px;">Oudste tracks naar boven, nieuwste naar beneden</p>
     </div>
-    <?php else: ?>
-    <div class="action-section">
-        <h2>✨ Alles is perfect!</h2>
-        <p>Al je playlists hebben <?php echo TARGET_TRACKS; ?> tracks of minder. Er is niets te verdelen.</p>
-    </div>
-    <?php endif; ?>
     
-    <?php if ($result): ?>
+    <?php if ($results): ?>
     <div class="result-section">
-        <div class="result-header">
-            <h2>✅ Verdeling Compleet!</h2>
-        </div>
+        <h2 style="text-align: center; margin-bottom: 30px;">✅ Rotatie Compleet!</h2>
         
-        <?php
-        $totalAdded = array_sum(array_column($result['report'], 'added'));
-        $totalRemoved = array_sum(array_column($result['report'], 'removed'));
-        $totalRedistributed = count(array_filter($result['log'], fn($l) => $l['action'] === 'redistribute'));
-        ?>
-        
-        <div class="result-stats">
-            <div class="result-stat">
-                <span class="result-stat-number" style="color: #1DB954;"><?php echo $totalRedistributed; ?></span>
-                <span class="result-stat-label">Tracks Verplaatst</span>
+        <?php foreach ($results as $result): ?>
+        <div class="result-card">
+            <div class="result-header">
+                <h3 class="result-title"><?php echo htmlspecialchars($result['name']); ?></h3>
+                <span class="result-status <?php echo $result['status'] === 'success' ? 'status-success' : 'status-skipped'; ?>">
+                    <?php echo $result['status'] === 'success' ? '✓ Geroteerd' : '⏭ Overgeslagen'; ?>
+                </span>
             </div>
-            <div class="result-stat">
-                <span class="result-stat-number" style="color: #f87171;"><?php echo $totalRemoved - $totalRedistributed; ?></span>
-                <span class="result-stat-label">Tracks Verwijderd</span>
+            
+            <?php if ($result['status'] === 'success'): ?>
+            <div class="result-stats">
+                <span class="result-stat">Voor: <strong><?php echo $result['original_count']; ?></strong></span>
+                <span class="result-stat">Na: <strong><?php echo $result['new_count']; ?></strong></span>
+                <span class="result-stat">Verwijderd: <strong><?php echo $result['removed_count']; ?></strong></span>
             </div>
-        </div>
-        
-        <table class="result-table">
-            <thead>
-                <tr>
-                    <th>Playlist</th>
-                    <th style="text-align: center;">Voor</th>
-                    <th style="text-align: center;">Na</th>
-                    <th style="text-align: center;">Toegevoegd</th>
-                    <th style="text-align: center;">Verwijderd</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php foreach ($result['report'] as $pid => $data): ?>
-                <tr>
-                    <td><?php echo htmlspecialchars($data['name']); ?></td>
-                    <td style="text-align: center;"><?php echo $data['before']; ?></td>
-                    <td style="text-align: center; font-weight: 600;"><?php echo $data['after']; ?></td>
-                    <td style="text-align: center; color: #1DB954;"><?php echo $data['added'] ?: '-'; ?></td>
-                    <td style="text-align: center; color: #f87171;"><?php echo $data['removed'] ?: '-'; ?></td>
-                </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
-        
-        <div class="log-section">
-            <h3 class="log-header">📋 Gedetailleerd Logboek</h3>
-            <div class="log-entries">
-                <?php foreach ($result['log'] as $entry): ?>
-                <div class="log-entry">
-                    <div class="log-icon">
-                        <?php if ($entry['action'] === 'redistribute'): ?>
-                        <span class="log-redistribute">↻</span>
-                        <?php else: ?>
-                        <span class="log-delete">×</span>
-                        <?php endif; ?>
+            
+            <?php if (!empty($result['removed_tracks'])): ?>
+            <div class="removed-tracks">
+                <h4>Verwijderde tracks (hadden 50 dagen exposure):</h4>
+                <?php foreach ($result['removed_tracks'] as $track): ?>
+                <div class="removed-track">
+                    <div class="track-info">
+                        <strong><?php echo htmlspecialchars($track['name']); ?></strong> - 
+                        <?php echo htmlspecialchars($track['artist']); ?>
                     </div>
-                    <div>
-                        <?php if ($entry['action'] === 'redistribute'): ?>
-                        <strong><?php echo htmlspecialchars($entry['track']); ?></strong> 
-                        verplaatst van <em><?php echo htmlspecialchars($entry['from']); ?></em> 
-                        naar <em><?php echo htmlspecialchars($entry['to']); ?></em>
-                        <?php else: ?>
-                        <strong><?php echo htmlspecialchars($entry['track']); ?></strong> 
-                        verwijderd uit <em><?php echo htmlspecialchars($entry['from']); ?></em>
-                        <span style="color: #b3b3b3;"> - <?php echo htmlspecialchars($entry['reason']); ?></span>
-                        <?php endif; ?>
+                    <div class="track-date">
+                        Toegevoegd: <?php echo date('d-m-Y', strtotime($track['added_at'])); ?>
                     </div>
                 </div>
                 <?php endforeach; ?>
             </div>
+            <?php endif; ?>
+            
+            <?php else: ?>
+            <p style="color: #b3b3b3; font-size: 14px; margin-top: 10px;">
+                <?php echo htmlspecialchars($result['message']); ?>
+            </p>
+            <?php endif; ?>
         </div>
+        <?php endforeach; ?>
     </div>
     <?php endif; ?>
 </div>
@@ -910,7 +844,7 @@ if ($isLoggedIn) {
 <script>
     function showLoading() {
         document.getElementById('loading').classList.add('active');
-        document.getElementById('distributeForm').style.display = 'none';
+        document.getElementById('reorderForm').style.display = 'none';
     }
 </script>
 ```
